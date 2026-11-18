@@ -97,6 +97,70 @@ export function AutomationDisconnectedPanel({
 }
 
 /**
+ * One quiet line under a pay action: the honest state of the automation
+ * service with its recovery affordance inline. The amber panels stay for
+ * a genuinely interrupted payment; this line is for every other state.
+ */
+export function AutomationStatusLine({
+	available,
+	running,
+	onRetry,
+}: {
+	available: boolean;
+	running: boolean;
+	onRetry: () => void;
+}) {
+	if (!isAndroidBridge()) {
+		return (
+			<p className="text-center text-xs text-muted-foreground">
+				Guided M-Pesa payments are available in the Android app.
+			</p>
+		);
+	}
+	if (!available) {
+		return (
+			<p className="flex flex-wrap justify-center gap-x-1.5 text-center text-xs text-muted-foreground">
+				Automation is off, so Tripwire can&rsquo;t fill the menus.
+				<button
+					type="button"
+					onClick={openUssdAutomationSettings}
+					className="font-medium text-foreground underline underline-offset-2"
+				>
+					Open settings
+				</button>
+			</p>
+		);
+	}
+	if (!running) {
+		return (
+			<p className="flex flex-wrap justify-center gap-x-1.5 text-center text-xs text-muted-foreground">
+				Automation is on, but Android hasn&rsquo;t connected it yet.
+				<button
+					type="button"
+					onClick={onRetry}
+					className="font-medium text-foreground underline underline-offset-2"
+				>
+					Retry
+				</button>
+				<button
+					type="button"
+					onClick={openUssdAutomationSettings}
+					className="font-medium text-foreground underline underline-offset-2"
+				>
+					Open settings
+				</button>
+			</p>
+		);
+	}
+	return (
+		<p className="text-center text-xs text-muted-foreground">
+			Tripwire dials *334# and fills the menus for you. You confirm with your
+			PIN as usual.
+		</p>
+	);
+}
+
+/**
  * Shown after a guided run was cut short. It never claims the payment failed;
  * the user is asked to verify before trying again.
  */

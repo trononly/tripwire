@@ -1,22 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { Events } from "@wailsio/runtime";
 import { toast } from "sonner";
-import { Send as SendIcon, Store } from "lucide-react";
+import {
+  Contact,
+  Loader2,
+  Send as SendIcon,
+  Store,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  AutomationDisconnectedPanel,
-  AutomationInterruptedNotice,
-  AutomationOffPanel,
-} from "@/components/automation-gate";
+import { AutomationInterruptedNotice, AutomationStatusLine } from "@/components/automation-gate";
 import { useAutomationAvailable } from "@/hooks/use-automation-available";
 import AmountField from "@/components/amount-field";
 import FavouriteStar from "@/components/favourite-star";
 import FavouritesRow from "@/components/favourites-row";
 import FavouritesSheet from "@/components/favourites-sheet";
 import { cn } from "@/lib/utils";
-import { formatPhoneInput } from "@/lib/format";
+import { formatAmountInput, formatPhoneInput } from "@/lib/format";
 import {
   formatFavouritePhone,
   isActiveFavourite,
@@ -80,6 +80,7 @@ export default function Send({ simKey }: { simKey?: string | null }) {
     qe.status === "step" ||
     qe.status === "awaiting-pin" ||
     qe.status === "awaiting-confirm";
+  const interrupted = qe.status === "interrupted" || qe.status === "aborted";
   const favouriteSaved =
     phoneOk &&
     fav.favourites.some((f) => normalizePhone(f.phone) === normalizePhone(phone));
@@ -144,7 +145,7 @@ export default function Send({ simKey }: { simKey?: string | null }) {
 
       {/* Top switcher: Send Money / Pochi */}
       <div
-        className="grid grid-cols-2 gap-1 border bg-muted p-1"
+        className="grid grid-cols-2 gap-1 rounded-[10px] border bg-muted p-1"
         role="tablist"
       >
         {TABS.map(({ id, label, icon: Icon }) => (
@@ -154,7 +155,7 @@ export default function Send({ simKey }: { simKey?: string | null }) {
             aria-selected={tab === id}
             onClick={() => setTab(id)}
             className={cn(
-              "flex items-center justify-center gap-1.5 px-2 py-2 text-sm font-medium transition-colors",
+              "flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
               tab === id
                 ? "bg-card text-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -166,89 +167,102 @@ export default function Send({ simKey }: { simKey?: string | null }) {
         ))}
       </div>
 
-      <Card>
-        <CardContent className="space-y-5">
-          <FavouritesRow
-            items={fav.favourites.map((f) => ({
-              id: f.id,
-              name: favouriteName(f.name, f.phone),
-              active: isActiveFavourite(f, phone),
-              onPick: () => {
-                vibrateIfEnabled(8);
-                setPhone(formatPhoneInput(f.phone));
-              },
-            }))}
-            onManage={() => setFavOpen(true)}
-          />
+      <FavouritesRow
+        items={fav.favourites.map((f) => ({
+          id: f.id,
+          name: favouriteName(f.name, f.phone),
+          active: isActiveFavourite(f, phone),
+          onPick: () => {
+            vibrateIfEnabled(8);
+            setPhone(formatPhoneInput(f.phone));
+          },
+        }))}
+        onManage={() => setFavOpen(true)}
+      />
 
-          <div className="space-y-1.5">
-            <label
-              htmlFor="send-phone"
-              className="text-[13px] font-medium text-foreground"
-            >
-              Phone number
-            </label>
-            <div className="relative">
-              <Input
-                id="send-phone"
-                inputMode="tel"
-                autoComplete="tel"
-                placeholder="07XX XXX XXX"
-                value={phone}
-                onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
-                aria-invalid={touched && !phoneOk}
-                className="h-11 pr-11 text-lg font-semibold tracking-wide tabular-nums"
-              />
-              <FavouriteStar
-                saved={favouriteSaved}
-                disabled={!phoneOk || fav.loading}
-                label="Save to favourites"
-                onClick={() => void fav.add("", normalizePhone(phone))}
-              />
-            </div>
-            {touched && !phoneOk && (
-              <span className="block text-xs text-destructive">
-                Enter a valid Safaricom number (07.. / 01..).
-              </span>
+      <div className="space-y-1.5">
+        <label
+          htmlFor="send-phone"
+          className="text-[13px] font-medium text-foreground"
+        >
+          Phone number
+        </label>
+        <div className="relative">
+          <Input
+            id="send-phone"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="07XX XXX XXX"
+            value={phone}
+            onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
+            aria-invalid={touched && !phoneOk}
+            className="h-11 rounded-xl pr-24 text-lg font-semibold tracking-wide tabular-nums"
+          />
+          {/* The system contact picker: same bridge call the favourites
+              sheet uses, surfaced here where the number is typed. */}
+          <button
+            type="button"
+            aria-label="Pick from contacts"
+            onClick={fav.pickFromContacts}
+            disabled={fav.picking}
+            className="absolute right-12 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+          >
+            {fav.picking ? (
+              <Loader2 className="size-5 animate-spin" aria-hidden />
+            ) : (
+              <Contact className="size-5" aria-hidden />
             )}
-          </div>
-
-          <AmountField
-            id="send-amount"
-            value={amount}
-            onChange={setAmount}
-            invalid={touched && !amountOk}
-            error={
-              touched && !amountOk
-                ? "Enter an amount between 1 and 500,000."
-                : undefined
-            }
+          </button>
+          <FavouriteStar
+            saved={favouriteSaved}
+            disabled={!phoneOk || fav.loading}
+            label="Save to favourites"
+            onClick={() => void fav.add("", normalizePhone(phone))}
           />
+        </div>
+        {touched && !phoneOk && (
+          <span className="block text-xs text-destructive">
+            Enter a valid Safaricom number (07.. / 01..).
+          </span>
+        )}
+      </div>
 
-          {qe.status === "interrupted" || qe.status === "aborted" ? (
-            <AutomationInterruptedNotice
-              code={qe.code ?? undefined}
-              onDismiss={qe.dismiss}
-            />
-          ) : null}
+      <AmountField
+        id="send-amount"
+        value={amount}
+        onChange={setAmount}
+        invalid={touched && !amountOk}
+        error={
+          touched && !amountOk
+            ? "Enter an amount between 1 and 500,000."
+            : undefined
+        }
+      />
 
-          {!auto.available ? (
-            <AutomationOffPanel />
-          ) : !auto.running ? (
-            <AutomationDisconnectedPanel onRetry={auto.recheck} compact />
-          ) : (
-            <Button
-              className="w-full"
-              size="lg"
-              onClick={handleSend}
-              disabled={busy}
-            >
-              <SendIcon className="size-4" />
-              {tab === "pochi" ? "Send to Pochi" : "Send"}
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+      {interrupted ? (
+        <AutomationInterruptedNotice
+          code={qe.code ?? undefined}
+          onDismiss={qe.dismiss}
+        />
+      ) : null}
+
+      <Button
+        className="min-h-11 w-full rounded-xl bg-pay-bg text-[15px] font-semibold text-pay-ink hover:opacity-90"
+        onClick={handleSend}
+        disabled={busy}
+      >
+        {valid
+          ? `Send ${formatAmountInput(amount)} to ${phone}`
+          : tab === "pochi"
+            ? "Send to Pochi"
+            : "Send money"}
+      </Button>
+
+      <AutomationStatusLine
+        available={auto.available}
+        running={auto.running}
+        onRetry={auto.recheck}
+      />
 
       <FavouritesSheet
         open={favOpen}

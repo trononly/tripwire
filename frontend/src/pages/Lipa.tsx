@@ -1,21 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Events } from "@wailsio/runtime";
 import { toast } from "sonner";
+import { useLocation } from "react-router-dom";
 import { ReceiptText, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  AutomationDisconnectedPanel,
-  AutomationInterruptedNotice,
-  AutomationOffPanel,
-} from "@/components/automation-gate";
+import { AutomationInterruptedNotice, AutomationStatusLine } from "@/components/automation-gate";
 import { useAutomationAvailable } from "@/hooks/use-automation-available";
 import AmountField from "@/components/amount-field";
 import FavouriteStar from "@/components/favourite-star";
 import FavouritesRow from "@/components/favourites-row";
 import LipaFavouritesSheet from "@/components/lipa-favourites-sheet";
 import { cn } from "@/lib/utils";
+import { formatAmountInput } from "@/lib/format";
 import {
   isActiveLipaFavourite,
   type LipaFavourite,
@@ -37,7 +34,6 @@ import { PageHeader } from "@/components/page-header";
 import { useLipaFavourites } from "@/hooks/use-lipa-favourites";
 import { vibrateIfEnabled } from "@/lib/motion-settings";
 
-
 type LipaTab = "paybill" | "till";
 const TABS: { id: LipaTab; label: string; icon: typeof ReceiptText }[] = [
   { id: "paybill", label: "Paybill", icon: ReceiptText },
@@ -46,11 +42,16 @@ const TABS: { id: LipaTab; label: string; icon: typeof ReceiptText }[] = [
 
 /**
  * Lipa na M-PESA - Paybill (paybill + account + amount) / Buy Goods (till +
- * amount). simKey pins the dial to the active wallet's SIM so the phone does
- * not show its call-SIM chooser; null lets the native bridge pick a line.
+ * amount). The Pay menu preselects the tab with ?tab=paybill or ?tab=till.
+ * simKey pins the dial to the active wallet's SIM so the phone does not
+ * show its call-SIM chooser; null lets the native bridge pick a line.
  */
 export default function Lipa({ simKey }: { simKey?: string | null }) {
-  const [tab, setTab] = useState<LipaTab>("paybill");
+  const location = useLocation();
+  const paramTab = new URLSearchParams(location.search).get("tab");
+  const [tab, setTab] = useState<LipaTab>(
+    paramTab === "till" ? "till" : "paybill",
+  );
   const [paybill, setPaybill] = useState("");
   const [account, setAccount] = useState("");
   const [till, setTill] = useState("");
@@ -58,6 +59,14 @@ export default function Lipa({ simKey }: { simKey?: string | null }) {
   const [touched, setTouched] = useState(false);
   const [favOpen, setFavOpen] = useState(false);
   const startedAt = useRef(0);
+
+  // The Pay menu can re-navigate to a ?tab= Lipa is already showing, so
+  // the sync keys on location.key, which changes on every navigation:
+  // the menu choice always wins over the mounted state.
+  useEffect(() => {
+    if (paramTab === "till" || paramTab === "paybill") setTab(paramTab);
+    // Manual tab switches never touch the location, so they are safe here.
+  }, [location.key, location.search]);
 
   useEffect(() => {
     const onTransaction = () => {
@@ -84,6 +93,7 @@ export default function Lipa({ simKey }: { simKey?: string | null }) {
     qe.status === "step" ||
     qe.status === "awaiting-pin" ||
     qe.status === "awaiting-confirm";
+  const interrupted = qe.status === "interrupted" || qe.status === "aborted";
 
   const currentNumber = tab === "paybill" ? paybill : till;
   const currentAccount = tab === "paybill" ? account : "";
@@ -166,7 +176,10 @@ export default function Lipa({ simKey }: { simKey?: string | null }) {
     <div className="mx-auto w-full max-w-xl space-y-5">
       <PageHeader title="Pay a bill" />
 
-      <div className="grid grid-cols-2 gap-1 border bg-muted p-1" role="tablist">
+      <div
+        className="grid grid-cols-2 gap-1 rounded-[10px] border bg-muted p-1"
+        role="tablist"
+      >
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -174,7 +187,7 @@ export default function Lipa({ simKey }: { simKey?: string | null }) {
             aria-selected={tab === id}
             onClick={() => setTab(id)}
             className={cn(
-              "flex items-center justify-center gap-1.5 px-2 py-2 text-sm font-medium transition-colors",
+              "flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
               tab === id
                 ? "bg-card text-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -186,152 +199,151 @@ export default function Lipa({ simKey }: { simKey?: string | null }) {
         ))}
       </div>
 
-      <Card>
-        <CardContent className="space-y-5">
-          <FavouritesRow
-            items={fav.favourites.map((f) => ({
-              id: f.id,
-              name: f.name,
-              active: isActiveLipaFavourite(
-                f,
-                tab,
-                currentNumber,
-                currentAccount,
-              ),
-              onPick: () => pickFavourite(f),
-            }))}
-            emptyTitle="Save your regular bills"
-            onManage={() => setFavOpen(true)}
-          />
+      <FavouritesRow
+        items={fav.favourites.map((f) => ({
+          id: f.id,
+          name: f.name,
+          active: isActiveLipaFavourite(
+            f,
+            tab,
+            currentNumber,
+            currentAccount,
+          ),
+          onPick: () => pickFavourite(f),
+        }))}
+        emptyTitle="Save your regular bills"
+        emptyHint="Save a paybill or till for one-tap paying"
+        onManage={() => setFavOpen(true)}
+      />
 
-          {tab === "paybill" ? (
-            <>
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="lipa-paybill"
-                  className="text-[13px] font-medium text-foreground"
-                >
-                  Paybill number
-                </label>
-                <div className="relative">
-                  <Input
-                    id="lipa-paybill"
-                    inputMode="numeric"
-                    placeholder="123456"
-                    value={paybill}
-                    maxLength={7}
-                    onChange={(e) => setPaybill(e.target.value.replace(/\D/g, ""))}
-                    aria-invalid={touched && !isValidPaybill(paybill)}
-                    className="h-11 pr-11 text-lg font-semibold tracking-wide tabular-nums"
-                  />
-                  <FavouriteStar
-                    saved={favouriteSaved}
-                    disabled={!canSave || fav.loading}
-                    label="Save to favourites"
-                    onClick={() =>
-                      void fav.add("", "paybill", paybill, account)
-                    }
-                  />
-                </div>
-                {touched && !isValidPaybill(paybill) && (
-                  <span className="text-xs text-destructive">
-                    Enter a valid paybill number (4-7 digits).
-                  </span>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="lipa-account"
-                  className="text-[13px] font-medium text-foreground"
-                >
-                  Account number
-                </label>
-                <Input
-                  id="lipa-account"
-                  placeholder="Account name or number"
-                  value={account}
-                  maxLength={20}
-                  onChange={(e) => setAccount(e.target.value)}
-                  aria-invalid={touched && !isValidAccount(account)}
-                  className="h-11 text-base"
-                />
-                {touched && !isValidAccount(account) && (
-                  <span className="text-xs text-destructive">
-                    Enter an account name or number.
-                  </span>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="space-y-1.5">
-              <label
-                htmlFor="lipa-till"
-                className="text-[13px] font-medium text-foreground"
-              >
-                Till number
-              </label>
-              <div className="relative">
-                <Input
-                  id="lipa-till"
-                  inputMode="numeric"
-                  placeholder="543210"
-                  value={till}
-                  maxLength={7}
-                  onChange={(e) => setTill(e.target.value.replace(/\D/g, ""))}
-                  aria-invalid={touched && !isValidTill(till)}
-                  className="h-11 pr-11 text-lg font-semibold tracking-wide tabular-nums"
-                />
-                <FavouriteStar
-                  saved={favouriteSaved}
-                  disabled={!canSave || fav.loading}
-                  label="Save to favourites"
-                  onClick={() => void fav.add("", "till", till, "")}
-                />
-              </div>
-              {touched && !isValidTill(till) && (
-                <span className="text-xs text-destructive">
-                  Enter a valid till number (5-7 digits).
-                </span>
-              )}
-            </div>
-          )}
-
-          <AmountField
-            id="lipa-amount"
-            value={amount}
-            onChange={setAmount}
-            invalid={touched && !isValidAmount(amount)}
-            error={
-              touched && !isValidAmount(amount)
-                ? "Enter an amount between 1 and 500,000."
-                : undefined
-            }
-          />
-
-          {qe.status === "interrupted" || qe.status === "aborted" ? (
-            <AutomationInterruptedNotice
-              code={qe.code ?? undefined}
-              onDismiss={qe.dismiss}
-            />
-          ) : null}
-
-          {!auto.available ? (
-            <AutomationOffPanel />
-          ) : !auto.running ? (
-            <AutomationDisconnectedPanel onRetry={auto.recheck} compact />
-          ) : (
-            <Button
-              className="w-full"
-              size="lg"
-              onClick={handleSend}
-              disabled={busy}
+      {tab === "paybill" ? (
+        <>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="lipa-paybill"
+              className="text-[13px] font-medium text-foreground"
             >
-              <ReceiptText className="size-4" />
-              {tab === "paybill" ? "Pay Bill" : "Buy Goods"}
-            </Button>
+              Paybill number
+            </label>
+            <div className="relative">
+              <Input
+                id="lipa-paybill"
+                inputMode="numeric"
+                placeholder="123456"
+                value={paybill}
+                maxLength={7}
+                onChange={(e) => setPaybill(e.target.value.replace(/\D/g, ""))}
+                aria-invalid={touched && !isValidPaybill(paybill)}
+                className="h-11 rounded-xl pr-11 text-lg font-semibold tracking-wide tabular-nums"
+              />
+              <FavouriteStar
+                saved={favouriteSaved}
+                disabled={!canSave || fav.loading}
+                label="Save to favourites"
+                onClick={() =>
+                  void fav.add("", "paybill", paybill, account)
+                }
+              />
+            </div>
+            {touched && !isValidPaybill(paybill) && (
+              <span className="text-xs text-destructive">
+                Enter a valid paybill number (4-7 digits).
+              </span>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="lipa-account"
+              className="text-[13px] font-medium text-foreground"
+            >
+              Account number
+            </label>
+            <Input
+              id="lipa-account"
+              placeholder="Account name or number"
+              value={account}
+              maxLength={20}
+              onChange={(e) => setAccount(e.target.value)}
+              aria-invalid={touched && !isValidAccount(account)}
+              className="h-11 rounded-xl text-base"
+            />
+            {touched && !isValidAccount(account) && (
+              <span className="text-xs text-destructive">
+                Enter an account name or number.
+              </span>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="space-y-1.5">
+          <label
+            htmlFor="lipa-till"
+            className="text-[13px] font-medium text-foreground"
+          >
+            Till number
+          </label>
+          <div className="relative">
+            <Input
+              id="lipa-till"
+              inputMode="numeric"
+              placeholder="543210"
+              value={till}
+              maxLength={7}
+              onChange={(e) => setTill(e.target.value.replace(/\D/g, ""))}
+              aria-invalid={touched && !isValidTill(till)}
+              className="h-11 rounded-xl pr-11 text-lg font-semibold tracking-wide tabular-nums"
+            />
+            <FavouriteStar
+              saved={favouriteSaved}
+              disabled={!canSave || fav.loading}
+              label="Save to favourites"
+              onClick={() => void fav.add("", "till", till, "")}
+            />
+          </div>
+          {touched && !isValidTill(till) && (
+            <span className="text-xs text-destructive">
+              Enter a valid till number (5-7 digits).
+            </span>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
+
+      <AmountField
+        id="lipa-amount"
+        value={amount}
+        onChange={setAmount}
+        invalid={touched && !isValidAmount(amount)}
+        error={
+          touched && !isValidAmount(amount)
+            ? "Enter an amount between 1 and 500,000."
+            : undefined
+        }
+      />
+
+      {interrupted ? (
+        <AutomationInterruptedNotice
+          code={qe.code ?? undefined}
+          onDismiss={qe.dismiss}
+        />
+      ) : null}
+
+      <Button
+        className="min-h-11 w-full rounded-xl bg-pay-bg text-[15px] font-semibold text-pay-ink hover:opacity-90"
+        onClick={handleSend}
+        disabled={busy}
+      >
+        {valid
+          ? `Pay ${formatAmountInput(amount)}`
+          : tab === "paybill"
+            ? "Pay Bill"
+            : "Buy Goods"}
+      </Button>
+
+      <AutomationStatusLine
+        available={auto.available}
+        running={auto.running}
+        onRetry={auto.recheck}
+      />
 
       <LipaFavouritesSheet
         open={favOpen}
