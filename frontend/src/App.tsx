@@ -221,12 +221,7 @@ function App() {
                 />
                 <Route
                   path="/transactions"
-                  element={
-                    <Transactions
-                      transactions={txs}
-                      onRefresh={() => sms.refreshSmsNow()}
-                    />
-                  }
+                  element={<Transactions transactions={txs} />}
                 />
                 <Route
                   path="/sms"

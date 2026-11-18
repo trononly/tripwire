@@ -14,12 +14,12 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { vibrateIfEnabled } from "@/lib/motion-settings";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 
 // Bottom nav destinations. Pay is not a route: the center button opens
 // the Pay bottom sheet. The other four are real tabs.
@@ -73,19 +73,12 @@ export function MobileNav() {
 
   return (
     <>
-      <Sheet open={open} onOpenChange={setOpen}>
-        {/* The nav bar (z-[70]) stays above the dimmed overlay, so the
-            sheet must stack above it and pad its last row clear of the
-            bar. Tapping the Pay pill again closes the menu. */}
-        <SheetContent
-          side="bottom"
-          showCloseButton={false}
-          className="z-[80] pb-[calc(3.5rem+var(--safe-bottom,env(safe-area-inset-bottom)))]"
-        >
-          <SheetHeader>
-            <SheetTitle>Pay</SheetTitle>
-            <SheetDescription>M-Pesa and bank destinations</SheetDescription>
-          </SheetHeader>
+      <Drawer open={open} onOpenChange={setOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Pay</DrawerTitle>
+            <DrawerDescription>M-Pesa and bank destinations</DrawerDescription>
+          </DrawerHeader>
           <div className="flex flex-col gap-1 px-2 pb-3">
             {actions.map(({ to, label, description, icon: Icon }) => (
               <button
@@ -109,8 +102,8 @@ export function MobileNav() {
               </button>
             ))}
           </div>
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
 
       {/* Solid background, not translucent: the safe-area padding below the
           last row must paint the same colour as the bar itself, otherwise the

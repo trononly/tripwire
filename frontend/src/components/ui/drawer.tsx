@@ -51,7 +51,7 @@ const DrawerContent = React.forwardRef<
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-x-0 bottom-0 z-[90] mt-24 flex h-auto flex-col rounded-none border border-border bg-surface pb-[var(--safe-bottom,env(safe-area-inset-bottom))] text-sm/relaxed sm:inset-x-auto sm:bottom-6 sm:left-1/2 sm:w-[min(42rem,calc(100vw-3rem))] sm:-translate-x-1/2 sm:border-x",
+        "fixed inset-x-0 bottom-0 z-[90] mt-24 flex h-auto flex-col rounded-t-[1rem] border border-border bg-surface pb-[var(--safe-bottom,env(safe-area-inset-bottom))] text-sm/relaxed sm:inset-x-auto sm:bottom-6 sm:left-1/2 sm:w-[min(42rem,calc(100vw-3rem))] sm:-translate-x-1/2 sm:rounded-[1rem] sm:border-x",
         className,
       )}
       onPointerDownOutside={(event) => {
@@ -65,7 +65,7 @@ const DrawerContent = React.forwardRef<
       }}
       {...props}
     >
-      <div className="mx-auto mt-4 h-2 w-[100px] rounded-none bg-muted" />
+      <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
       {children}
     </DrawerPrimitive.Content>
   </DrawerPortal>
