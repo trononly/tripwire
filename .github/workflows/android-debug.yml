@@ -99,11 +99,11 @@ jobs:
 
       - name: Install Android SDK platform, build tools and NDK
         run: |
-          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;26.3.11579264"
+          sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.14206865"
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
 
       - name: Export NDK path
-        run: echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/26.3.11579264" >> "$GITHUB_ENV"
+        run: echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/29.0.14206865" >> "$GITHUB_ENV"
 
       - name: Build debug APK
         run: wails3 task android:package:debug
