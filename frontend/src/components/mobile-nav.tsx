@@ -7,16 +7,22 @@ import {
   Plus,
   Send as SendIcon,
   ShoppingCart,
+  Landmark,
+  Banknote,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { vibrateIfEnabled } from "@/lib/motion-settings";
 import {
-  useReduceMotionEnabled,
-  vibrateIfEnabled,
-} from "@/lib/motion-settings";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 // Bottom nav destinations. Pay is not a route: the center button opens
-// the M-Pesa pay overlay. The other four are real tabs.
+// the Pay bottom sheet. The other four are real tabs.
 const items = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight, end: false },
@@ -25,22 +31,32 @@ const items = [
   { to: "/settings", label: "Settings", icon: SettingsIcon, end: false },
 ] as const;
 
+// Pay menu destinations: one row each with a route, a name and a
+// one-line description. The sheet renders straight from this registry.
 const actions = [
   {
     to: "/send",
-    label: "Send Money",
+    label: "Send money",
+    description: "To a person or Pochi la Biashara",
     icon: SendIcon,
-    color: "bg-primary",
-    dx: -76,
-    dy: -110,
   },
   {
-    to: "/lipa",
-    label: "Lipa na M-PESA",
+    to: "/lipa?tab=paybill",
+    label: "Pay bill",
+    description: "Paybill number with an account",
+    icon: Landmark,
+  },
+  {
+    to: "/lipa?tab=till",
+    label: "Buy goods",
+    description: "Till number at a shop or restaurant",
     icon: ShoppingCart,
-    color: "bg-primary",
-    dx: 76,
-    dy: -110,
+  },
+  {
+    to: "/withdraw",
+    label: "Withdraw",
+    description: "Agent, ATM or to your bank",
+    icon: Banknote,
   },
 ] as const;
 
@@ -48,86 +64,53 @@ export function MobileNav() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
-  // In-app Reduce motion (or the OS preference) stops the satellite
-  // spring-in and the pulsating halo, so the menu appears statically.
-  const reduceMotion = useReduceMotionEnabled();
 
-  // Close the overlay on any route change: system back, satellite tap, or
-  // a navbar tap while the Pay menu is open.
+  // Close the sheet on any route change: system back, a destination tap,
+  // or a navbar tap while the Pay menu is open.
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
 
   return (
     <>
-      {open && (
-        <button
-          aria-label="Close Pay menu"
-          className="fixed inset-0 z-50 bg-black/70"
-          onClick={() => setOpen(false)}
-        />
-      )}
-
-      {open && (
-        <div className="pointer-events-none fixed inset-0 z-[60] lg:hidden">
-          {/* Zero-size anchor exactly at the Pay button center: the nav is
-              5 equal columns, so column 3 (Pay) is centered at left-1/2.
-              Bottom offset lands on the Pay circle center. */}
-          <div className="absolute bottom-[calc(3.5rem+var(--safe-bottom,env(safe-area-inset-bottom)))] left-1/2 h-0 w-0">
-            {actions.map(({ to, label, icon: Icon, color, dx, dy }, i) => (
-              <div
+      <Sheet open={open} onOpenChange={setOpen}>
+        {/* The nav bar (z-[70]) stays above the dimmed overlay, so the
+            sheet must stack above it and pad its last row clear of the
+            bar. Tapping the Pay pill again closes the menu. */}
+        <SheetContent
+          side="bottom"
+          showCloseButton={false}
+          className="z-[80] pb-[calc(3.5rem+var(--safe-bottom,env(safe-area-inset-bottom)))]"
+        >
+          <SheetHeader>
+            <SheetTitle>Pay</SheetTitle>
+            <SheetDescription>M-Pesa and bank destinations</SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-col gap-1 px-2 pb-3">
+            {actions.map(({ to, label, description, icon: Icon }) => (
+              <button
                 key={to}
-                className="absolute left-0 top-0"
-                style={{
-                  transform: `translate(calc(-50% + ${dx}px), ${dy}px)`,
+                onClick={() => {
+                  vibrateIfEnabled(10);
+                  setOpen(false);
+                  navigate(to);
                 }}
+                className="flex min-h-11 items-center gap-3 rounded-[10px] px-2 py-2 text-left transition-colors hover:bg-muted"
               >
-                <div
-                  className="relative"
-                  style={
-                    reduceMotion
-                      ? undefined
-                      : {
-                          animation:
-                            "pay-satellite-in 0.35s cubic-bezier(0.34,1.56,0.64,1) both",
-                          animationDelay: `${i * 60}ms`,
-                        }
-                  }
-                >
-                  <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-none border border-border bg-surface/90 px-2 py-0.5 text-[11px] font-medium text-foreground shadow-md pointer-events-none">
-                    {label}
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-muted">
+                  <Icon className="size-5" strokeWidth={1.75} />
+                </span>
+                <span className="flex flex-col">
+                  <span className="text-sm font-medium">{label}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {description}
                   </span>
-                  <button
-                    aria-label={label}
-                    onClick={() => {
-                      vibrateIfEnabled(10);
-                      setOpen(false);
-                      navigate(to);
-                    }}
-                    className={cn(
-                      "pointer-events-auto relative flex size-14 items-center justify-center rounded-full text-white shadow-lg",
-                      color,
-                    )}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="absolute inset-0 rounded-full border border-white/20"
-                    />
-                    <Icon className="relative size-6" />
-                  </button>
-                </div>
-              </div>
+                </span>
+              </button>
             ))}
           </div>
-        </div>
-      )}
-
-      <style>{`
-        @keyframes pay-satellite-in {
-          from { opacity: 0; scale: 0.4; }
-          to { opacity: 1; scale: 1; }
-        }
-      `}</style>
+        </SheetContent>
+      </Sheet>
 
       {/* Solid background, not translucent: the safe-area padding below the
           last row must paint the same colour as the bar itself, otherwise the
@@ -147,12 +130,12 @@ export function MobileNav() {
                   vibrateIfEnabled(10);
                   setOpen((v) => !v);
                 }}
-                className="flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-muted-foreground"
+                className="flex min-h-14 items-center justify-center px-2"
               >
-                <span className="flex size-11 items-center justify-center rounded-full bg-primary text-white font-semibold shadow-lg">
-                  <Plus className="size-6" strokeWidth={2} />
+                <span className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-full bg-pay-bg px-4 text-sm font-semibold text-pay-ink">
+                  <Plus className="size-4" strokeWidth={2} />
+                  Pay
                 </span>
-                Pay
               </button>
             ) : (
               <NavLink
