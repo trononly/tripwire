@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { typeStyle } from "@/lib/transaction-types";
-import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Private } from "@/components/privacy";
-import { formatMoney } from "@/lib/format";
-import { TransactionReceiptDialog } from "@/components/transaction-receipt-dialog";
+import { formatMoney, formatFullDate } from "@/lib/format";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { TransactionGroups } from "../../bindings/mpesa-analyzer/parseservice";
 import type { DayGroup } from "../../bindings/mpesa-analyzer/models";
 
@@ -108,38 +112,23 @@ export function useTransactionGroups(txs: parser.Transaction[]): Group[] {
 
 function TxRow({
   tx,
-  expanded,
-  onToggle,
-  onVeil,
+  onSelect,
   onSetCategory,
 }: {
   tx: TransactionView;
-  expanded: boolean;
-  onToggle: () => void;
-  onVeil: () => void;
+  onSelect: () => void;
   onSetCategory?: (tx: TransactionView) => void;
 }) {
   // Who: the counterparty extracted in Go, falling back to the type label
   // when the statement names none ("Airtime Purchase", "Fuliza M-Pesa",
   // "Fuliza Access Fee", "Fuliza Repayment ...").
   // What: the user's category when set, otherwise the type label, plus time.
-  // The full raw description stays in the expanded detail.
   const { icon: Icon, className: tint, label: typeLabel } = typeStyle(tx.type);
   const title = tx.counterparty || typeLabel;
   const category = tx.customCategoryId
     ? { name: tx.customCategoryName, icon: tx.customCategoryIcon }
     : null;
   const moneyIn = tx.amount >= 0;
-  // Long-press (touch) or right-click (mouse) veils the ledger into the
-  // receipt dialog. The click after a touch long-press is swallowed.
-  const pressTimer = useRef<number | null>(null);
-  const veiledPress = useRef(false);
-  const clearPress = () => {
-    if (pressTimer.current !== null) {
-      window.clearTimeout(pressTimer.current);
-      pressTimer.current = null;
-    }
-  };
   const badge = (
     <span
       className={`flex size-9 shrink-0 items-center justify-center rounded-none transition-colors group-hover/badge:bg-muted/80 ${tint}`}
@@ -153,117 +142,62 @@ function TxRow({
     </span>
   );
   return (
-    <div>
-      <div className="flex w-full items-stretch transition-colors hover:bg-muted/50">
-        {/* The badge is its own tap target: the row click expands, the icon
-            labels. A nested button would be invalid HTML, so the row is a
-            container with two sibling buttons. */}
-        {onSetCategory ? (
-          <button
-            type="button"
-            onClick={() => {
-              vibrateIfEnabled(8);
-              onSetCategory(tx);
-            }}
-            className="group/badge flex shrink-0 touch-manipulation items-center justify-center py-2.5 pl-3 [-webkit-touch-callout:none]"
-            aria-label={`${
-              category ? `Change category, currently ${category.name}` : "Set category"
-            } for ${title}`}
-          >
-            {badge}
-          </button>
-        ) : (
-          <span className="flex shrink-0 items-center justify-center py-2.5 pl-3">
-            {badge}
-          </span>
-        )}
-
+    <div className="flex w-full items-stretch transition-colors hover:bg-muted/50">
+      {/* The badge is its own tap target: the row click opens the receipt, the
+          icon labels. A nested button would be invalid HTML, so the row is a
+          container with two sibling buttons. */}
+      {onSetCategory ? (
         <button
           type="button"
           onClick={() => {
-            if (veiledPress.current) {
-              veiledPress.current = false;
-              return;
-            }
-            onToggle();
+            vibrateIfEnabled(8);
+            onSetCategory(tx);
           }}
-          onTouchStart={() => {
-            veiledPress.current = false;
-            clearPress();
-            pressTimer.current = window.setTimeout(() => {
-              veiledPress.current = true;
-              onVeil();
-            }, 550);
-          }}
-          onTouchMove={clearPress}
-          onTouchEnd={clearPress}
-          onTouchCancel={clearPress}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            onVeil();
-          }}
-          aria-expanded={expanded}
-          className="flex min-w-0 flex-1 touch-manipulation items-center gap-3 py-2.5 pr-3 pl-3 text-left select-none [-webkit-touch-callout:none]"
+          className="group/badge flex shrink-0 touch-manipulation items-center justify-center py-2.5 pl-3 [-webkit-touch-callout:none]"
+          aria-label={`${
+            category ? `Change category, currently ${category.name}` : "Set category"
+          } for ${title}`}
         >
-          {/* text block */}
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[15px] font-medium leading-5">
-              {title}
-            </span>
-            <span className="block truncate text-[13px] leading-4 text-muted-foreground">
-              {category
-                ? `${category.name} · `
-                : tx.counterparty
-                  ? `${typeLabel} · `
-                  : ""}
-              {tx.date.slice(11, 16)}
-            </span>
-          </span>
-
-          {/* amount */}
-          <span className="flex shrink-0 items-center gap-1">
-            <span
-              className={`whitespace-nowrap text-[15px] font-medium tabular-nums ${
-                moneyIn ? "text-money-in" : "text-money-out"
-              }`}
-            >
-              {formatAmount(tx.amount)}
-            </span>
-            <ChevronDown
-              className={`size-3.5 text-muted-foreground transition-transform ${
-                expanded ? "rotate-180" : ""
-              }`}
-            />
-          </span>
+          {badge}
         </button>
-      </div>
-
-      {expanded && (
-        <div className="space-y-1 border-t border-border/60 bg-muted/40 px-3 py-2.5 text-[13px] select-text">
-          {category && (
-            <DetailRow
-              label="Category"
-              value={
-                <span className="inline-flex items-center gap-1.5">
-                  <CategoryIcon icon={category.icon} className="size-4" />
-                  {category.name}
-                </span>
-              }
-            />
-          )}
-          {category && <DetailRow label="Type" value={typeLabel} />}
-          <DetailRow label="Description" value={tx.description} wrap />
-          <DetailRow label="Reference" value={tx.id} mono wrap />
-          <DetailRow
-            label="Balance after"
-            value={formatMoney(tx.balance)}
-          />
-          <DetailRow label="Timestamp" value={tx.date} />
-          {tx.status && tx.status.toLowerCase() !== "completed" && (
-            <DetailRow label="Status" value={tx.status} />
-          )}
-        </div>
+      ) : (
+        <span className="flex shrink-0 items-center justify-center py-2.5 pl-3">
+          {badge}
+        </span>
       )}
+
+      <button
+        type="button"
+        onClick={() => {
+          vibrateIfEnabled(8);
+          onSelect();
+        }}
+        className="flex min-w-0 flex-1 touch-manipulation items-center gap-3 py-2.5 pr-3 pl-3 text-left select-none"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-medium leading-5">
+            {title}
+          </span>
+          <span className="block truncate text-[13px] leading-4 text-muted-foreground">
+            {category
+              ? `${category.name} · `
+              : tx.counterparty
+                ? `${typeLabel} · `
+                : ""}
+            {tx.date.slice(11, 16)}
+          </span>
+        </span>
+
+        {/* Out in ink, in with a plus in green: red stays for data status,
+            never for an ordinary amount. */}
+        <span
+          className={`whitespace-nowrap text-[15px] font-medium tabular-nums ${
+            moneyIn ? "text-money-in" : "text-foreground"
+          }`}
+        >
+          {formatAmount(tx.amount)}
+        </span>
+      </button>
     </div>
   );
 }
@@ -280,14 +214,103 @@ function DetailRow({
   wrap?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-[5.5rem_1fr] gap-x-3">
+    <div className="grid grid-cols-[5.5rem_1fr] items-baseline gap-x-3 py-2">
       <span className="text-muted-foreground">{label}</span>
       <span
-        className={`${mono ? "font-mono" : ""} ${wrap ? "wrap-break-words" : "truncate"}`}
+        className={`min-w-0 font-medium ${mono ? "font-mono" : ""} ${
+          wrap ? "wrap-break-words" : "truncate"
+        }`}
       >
         {value}
       </span>
     </div>
+  );
+}
+
+/**
+ * Receipt sheet: what one tap on a row opens. The amount is the hero with the
+ * counterparty under it, the keyed fields follow, and the reference sits at
+ * the foot where a receipt puts it.
+ */
+function ReceiptSheet({
+  tx,
+  onClose,
+}: {
+  tx: TransactionView | null;
+  onClose: () => void;
+}) {
+  return (
+    <Drawer open={tx !== null} onOpenChange={(o) => !o && onClose()}>
+      <DrawerContent>
+        <DrawerTitle className="sr-only">Transaction receipt</DrawerTitle>
+        <DrawerDescription className="sr-only">
+          Full details of the tapped transaction
+        </DrawerDescription>
+        {tx && (
+          <div className="px-4 pb-4">
+            <div className="flex flex-col items-center gap-1 pb-4 pt-1 text-center">
+              <Private label="Tap to reveal the amount">
+                <span
+                  className={`text-[28px] font-semibold tabular-nums ${
+                    tx.amount >= 0 ? "text-money-in" : "text-foreground"
+                  }`}
+                >
+                  {formatAmount(tx.amount)}
+                </span>
+              </Private>
+              <span className="text-[13px] text-muted-foreground">
+                {tx.counterparty || typeStyle(tx.type).label}
+              </span>
+            </div>
+            <div className="divide-y divide-border border-y border-border text-[13px]">
+              {/* The parsed statement carries no wallet/SIM field, so the
+                  type label holds that slot: it names which M-Pesa movement
+                  this was (Buy Goods, Fuliza, Received ...). */}
+              <DetailRow
+                label="When"
+                value={`${formatFullDate(tx.date)}, ${tx.date.slice(11, 16)}`}
+              />
+              <DetailRow
+                label="Category"
+                value={
+                  tx.customCategoryId ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <CategoryIcon
+                        icon={tx.customCategoryIcon}
+                        className="size-4"
+                      />
+                      {tx.customCategoryName}
+                    </span>
+                  ) : (
+                    typeStyle(tx.type).label
+                  )
+                }
+              />
+              {tx.customCategoryId ? (
+                <DetailRow label="Type" value={typeStyle(tx.type).label} />
+              ) : null}
+              <DetailRow label="Description" value={tx.description} wrap />
+              <DetailRow
+                label="Balance after"
+                value={
+                  <Private label="Tap to reveal">
+                    {formatMoney(tx.balance)}
+                  </Private>
+                }
+              />
+              {tx.status && tx.status.toLowerCase() !== "completed" ? (
+                <DetailRow label="Status" value={tx.status} />
+              ) : null}
+              <DetailRow
+                label="Reference"
+                mono
+                value={<span className="text-muted-foreground">{tx.id}</span>}
+              />
+            </div>
+          </div>
+        )}
+      </DrawerContent>
+    </Drawer>
   );
 }
 
@@ -325,9 +348,10 @@ function sliceGroups(
 }
 
 /**
- * Shared transaction renderer: one bordered card per calendar day, each with
- * a date header + end-of-day balance. Grouping, sorting and categorization
- * are computed in Go (see ParseService.TransactionGroups); this component
+ * Shared transaction renderer: dense two-line rows grouped by calendar day,
+ * each group under a sticky date header carrying the end-of-day balance. A
+ * tap on a row opens the receipt sheet; grouping, sorting and categorization
+ * are computed in Go (see ParseService.TransactionGroups), this component
  * only paginates and renders.
  */
 export function TransactionList({
@@ -335,9 +359,8 @@ export function TransactionList({
   showPagination = true,
   onSetCategory,
 }: TransactionListProps) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  // Long-press inspection veil (receipt dialog over a censored ledger).
-  const [veiled, setVeiled] = useState<TransactionView | null>(null);
+  // The one selection: the transaction whose receipt is open, or none.
+  const [selected, setSelected] = useState<TransactionView | null>(null);
   // Infinite scroll: rows render in batches; the sentinel below loads more.
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -374,11 +397,8 @@ export function TransactionList({
       {page.length ? (
         <div className="space-y-3">
           {page.map((g) => (
-            <section
-              key={g.dayKey}
-              className="rounded-none border"
-            >
-              <header className="sticky top-0 z-10 flex items-baseline justify-between gap-2 border-b border-border bg-muted px-3 py-2">
+            <section key={g.dayKey}>
+              <header className="sticky top-0 z-10 flex items-baseline justify-between gap-2 bg-background py-2">
                 <span className="text-[13px] font-medium">
                   {dateGroupLabel(g.dayKey)}
                 </span>
@@ -394,11 +414,7 @@ export function TransactionList({
                   <TxRow
                     key={t.id}
                     tx={t}
-                    expanded={expandedId === t.id}
-                    onToggle={() =>
-                      setExpandedId((e) => (e === t.id ? null : t.id))
-                    }
-                    onVeil={() => setVeiled(t)}
+                    onSelect={() => setSelected(t)}
                     onSetCategory={onSetCategory}
                   />
                 ))}
@@ -412,33 +428,23 @@ export function TransactionList({
         </div>
       )}
 
-      {showPagination && totalRows > 0 && (
-        <div className="flex items-center justify-between gap-2 px-1 py-2">
-          <span className="text-sm tabular-nums text-muted-foreground">
-            Showing {shownCount.toLocaleString()} of{" "}
-            {totalRows.toLocaleString()} tx{totalRows === 1 ? "" : "s"}
-          </span>
-          {hasMore && (
-            <Button
-              variant="outline"
-              onClick={() =>
-                setVisibleCount((c) => Math.min(c + BATCH_SIZE, totalRows))
-              }
-            >
-              Load more
-            </Button>
-          )}
+      {showPagination && hasMore && (
+        <div className="flex justify-center py-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() =>
+              setVisibleCount((c) => Math.min(c + BATCH_SIZE, totalRows))
+            }
+          >
+            Show earlier transactions
+          </Button>
         </div>
       )}
       {hasMore && <div ref={sentinelRef} aria-hidden="true" />}
 
-      <TransactionReceiptDialog
-        tx={veiled}
-        onClose={() => setVeiled(null)}
-        onViewAll={() => setVeiled(null)}
-        title="Transaction details"
-        showViewAll={false}
-      />
+      <ReceiptSheet tx={selected} onClose={() => setSelected(null)} />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 // is small (pure lib functions plus one component render), and a single
 // file keeps the whole contract visible without hunting across folders.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 import { Browser } from "@wailsio/runtime";
@@ -28,15 +28,14 @@ import {
 } from "@/lib/automation-status";
 import type { AutomationDiagnostics } from "@/lib/sms-bridge";
 import { parseInline, parseReleaseNotes } from "@/lib/release-notes";
-import {
-  counterpartyDisplayName,
-  CounterpartyCard,
-} from "@/components/counterparty-card";
 import type * as models from "../bindings/mpesa-analyzer/models";
 import type * as analysis from "../bindings/mpesa-analyzer/internal/analysis/models";
-import { todayKey } from "@/lib/ads";
 import { SODA_URL, openExternalUrl } from "@/lib/external-url";
-import { parseHouseAds, pickHouseAd, type HouseAd } from "@/lib/house-ads";
+import {
+	feeRangeLabel,
+	insightFinding,
+	monthOutCells,
+} from "@/lib/insight-finding";
 import {
 	compareVersions,
 	isNewerVersion,
@@ -111,7 +110,6 @@ import {
 	togglePrivacyMode,
 } from "@/lib/privacy-mode";
 import { dayEndMs, dayStartMs, filterSmsResults } from "@/lib/sms-filter";
-import { BudgetAlert } from "@/components/budget-alert";
 import { BudgetSummaryCard } from "@/components/budget-summary";
 import {
 	budgetPercent,
@@ -122,11 +120,6 @@ import {
 	monthLabel,
 	summarizeBudgets,
 } from "@/lib/category-budgets";
-import {
-	budgetAlertKey,
-	markBudgetAlertsSeen,
-	unseenBudgetAlerts,
-} from "@/lib/budget-alerts";
 import type * as categoryModels from "../bindings/mpesa-analyzer/internal/categories/models";
 
 // Keep every other import of the Wails runtime intact; only the browser
@@ -136,7 +129,7 @@ vi.mock("@wailsio/runtime", async (importOriginal) => ({
 	Browser: { OpenURL: vi.fn() },
 }));
 
-// --- ads ---
+// Shared localStorage stub for the lib tests below.
 
 const store = new Map<string, string>();
 vi.stubGlobal("localStorage", {
@@ -154,12 +147,6 @@ beforeEach(() => {
 	store.clear();
 });
 
-describe("ads", () => {
-	it("builds a local YYYY-MM-DD day key", () => {
-		expect(todayKey(new Date(2026, 9, 14))).toBe("2026-10-14");
-	});
-});
-
 // --- external-url ---
 
 describe("external-url", () => {
@@ -175,52 +162,222 @@ describe("external-url", () => {
 	});
 });
 
-// --- house-ads ---
+// --- insight finding ---
 
-const good = {
-	id: "acme",
-	title: "Acme",
-	text: "One line of sponsor copy.",
-	url: "https://acme.example/shop",
-};
+const centsTotals = (over: Partial<analysis.Totals> = {}): analysis.Totals => ({
+	totalIn: 9_000_000,
+	totalOut: 7_500_000,
+	totalFees: 0,
+	net: 0,
+	openingBalance: 0,
+	closingBalance: 0,
+	count: 23,
+	...over,
+});
 
-describe("house-ads", () => {
-	it("accepts a well-formed list", () => {
-		expect(parseHouseAds({ ads: [good] })).toEqual([good]);
+const findingResult = (
+	over: Partial<analysis.AnalysisResult> = {},
+): analysis.AnalysisResult => ({
+	totals: centsTotals(),
+	cashflowDaily: null,
+	cashflowWeekly: null,
+	cashflowMonthly: null,
+	balanceSeries: null,
+	categories: null,
+	topCounterparties: null,
+	recurringPayments: null,
+	feesByType: null,
+	fulizaOutstanding: 0,
+	...over,
+});
+
+const monthlyBucket = (ym: string, out: number): analysis.CashflowBucket => ({
+	label: ym,
+	start: `${ym}-01`,
+	in: 0,
+	out,
+});
+
+// Nov 19 2026: the newest month in the sample data is still running.
+const NOV_19 = new Date(2026, 10, 19);
+
+describe("insight finding", () => {
+	it("leads with the biggest spending category's share of money out", () => {
+		const f = insightFinding(
+			findingResult({
+				categories: [
+					{ name: "Salary", amount: 9_000_000, count: 3, percent: 0 },
+					{ name: "Rent", amount: -4_000_000, count: 3, percent: 0 },
+					{ name: "Food", amount: -3_500_000, count: 20, percent: 0 },
+				],
+				cashflowMonthly: [
+					monthlyBucket("2026-09", 6_356_600),
+					monthlyBucket("2026-10", 7_059_100),
+					monthlyBucket("2026-11", 4_703_400),
+				],
+			}),
+			NOV_19,
+		);
+		expect(f.lead).toEqual({
+			category: "Rent",
+			perHundred: "53",
+			scope: "since September",
+		});
 	});
 
-	it("rejects non-https, overlong, duplicate and malformed entries", () => {
-		const ads = parseHouseAds({
-			ads: [
-				good,
-				{ ...good, id: "http", url: "http://acme.example" },
-				{ ...good, id: "js", url: "javascript:alert(1)" },
-				{ ...good, id: "long", title: "x".repeat(61) },
-				{ ...good, id: "copycat" },
-				{ ...good, id: "acme" },
-				"nope",
-				null,
+	it("names the single covered month when there is no span", () => {
+		const f = insightFinding(
+			findingResult({
+				categories: [
+					{ name: "Rent", amount: -4_000_000, count: 3, percent: 0 },
+				],
+				cashflowMonthly: [monthlyBucket("2026-11", 4_703_400)],
+			}),
+			NOV_19,
+		);
+		expect(f.lead).toEqual({
+			category: "Rent",
+			perHundred: "53",
+			scope: "in November",
+		});
+	});
+
+	it("stays quiet with no spending or no biggest category", () => {
+		expect(insightFinding(findingResult({ totals: centsTotals({ totalOut: 0 }) }), NOV_19).lead).toBeNull();
+		expect(
+			insightFinding(
+				findingResult({
+					categories: [{ name: "Salary", amount: 5_000_000, count: 2, percent: 0 }],
+				}),
+				NOV_19,
+			).lead,
+		).toBeNull();
+	});
+
+	it("rounds a tiny share down to 'under 1' instead of 0", () => {
+		const f = insightFinding(
+			findingResult({
+				categories: [
+					{ name: "Food", amount: -50_00, count: 1, percent: 0 },
+				],
+			}),
+			NOV_19,
+		);
+		expect(f.lead?.perHundred).toBe("under 1");
+	});
+
+	it("signs the month-over-month delta by the good direction", () => {
+		const result = findingResult({
+			cashflowMonthly: [
+				monthlyBucket("2026-10", 7_059_100),
+				monthlyBucket("2026-11", 4_703_400),
 			],
 		});
-		expect(ads).toEqual([good, { ...good, id: "copycat" }]);
+		const lighter = insightFinding(result, NOV_19).delta;
+		expect(lighter).toEqual({
+			kind: "changed",
+			good: true,
+			subject: "November so far",
+			amount: "23,557.00",
+			against: "October",
+		});
+
+		const heavier = insightFinding(
+			findingResult({
+				cashflowMonthly: [
+					monthlyBucket("2026-10", 4_703_400),
+					monthlyBucket("2026-11", 7_059_100),
+				],
+			}),
+			NOV_19,
+		).delta;
+		expect(heavier).toMatchObject({ good: false, amount: "23,557.00" });
+
+		const flat = insightFinding(
+			findingResult({
+				cashflowMonthly: [
+					monthlyBucket("2026-10", 4_703_400),
+					monthlyBucket("2026-11", 4_703_400),
+				],
+			}),
+			NOV_19,
+		).delta;
+		expect(flat).toEqual({
+			kind: "flat",
+			subject: "November so far",
+			against: "October",
+		});
 	});
 
-	it("returns [] for missing or malformed payloads", () => {
-		expect(parseHouseAds(null)).toEqual([]);
-		expect(parseHouseAds({})).toEqual([]);
-		expect(parseHouseAds({ ads: "nope" })).toEqual([]);
-	});
+	it("drops 'so far' once the month is over and goes quiet with one bucket", () => {
+		const finished = insightFinding(
+			findingResult({
+				cashflowMonthly: [
+					monthlyBucket("2026-10", 7_059_100),
+					monthlyBucket("2026-11", 4_703_400),
+				],
+			}),
+			new Date(2026, 11, 5),
+		).delta;
+		expect(finished).toMatchObject({ subject: "November", good: true });
 
-	it("picks a stable card per day and null when empty", () => {
-		const list: HouseAd[] = [
-			good,
-			{ ...good, id: "b", title: "B" },
-			{ ...good, id: "c", title: "C" },
-		];
-		expect(pickHouseAd(list, "2026-10-13")).toEqual(
-			pickHouseAd(list, "2026-10-13"),
+		expect(
+			insightFinding(
+				findingResult({ cashflowMonthly: [monthlyBucket("2026-11", 4_703_400)] }),
+				NOV_19,
+			).delta,
+		).toBeNull();
+	});
+});
+
+describe("money out by month", () => {
+	it("shows the newest three buckets oldest first, current month to date", () => {
+		const cells = monthOutCells(
+			findingResult({
+				cashflowMonthly: [
+					monthlyBucket("2026-08", 1_000_000),
+					monthlyBucket("2026-09", 6_356_600),
+					monthlyBucket("2026-10", 7_059_100),
+					monthlyBucket("2026-11", 4_703_400),
+				],
+			}),
+			NOV_19,
 		);
-		expect(pickHouseAd([], "2026-10-13")).toBeNull();
+		expect(cells).toEqual([
+			{ value: "63,566", label: "Sep" },
+			{ value: "70,591", label: "Oct" },
+			{ value: "47,034", label: "Nov, to date" },
+		]);
+	});
+
+	it("shows fewer cells for a short history", () => {
+		const cells = monthOutCells(
+			findingResult({ cashflowMonthly: [monthlyBucket("2026-11", 4_703_400)] }),
+			NOV_19,
+		);
+		expect(cells).toEqual([{ value: "47,034", label: "Nov, to date" }]);
+	});
+});
+
+describe("fee range label", () => {
+	it("spans first to last month", () => {
+		expect(
+			feeRangeLabel(
+				findingResult({
+					cashflowMonthly: [
+						monthlyBucket("2026-09", 1),
+						monthlyBucket("2026-11", 1),
+					],
+				}),
+			),
+		).toBe("Sep to Nov");
+	});
+
+	it("names a lone month and goes quiet with no months", () => {
+		expect(
+			feeRangeLabel(findingResult({ cashflowMonthly: [monthlyBucket("2026-11", 1)] })),
+		).toBe("November");
+		expect(feeRangeLabel(findingResult())).toBeNull();
 	});
 });
 
@@ -1123,6 +1280,49 @@ describe("TransactionList", () => {
 		// The themed icon replaces the transaction type's icon in the badge.
 		expect(badge.querySelector("svg")).not.toBeNull();
 	});
+
+	it("opens the receipt sheet from a row tap with every detail re-housed", () => {
+		render(<TransactionList groups={groups} showPagination={false} />);
+		fireEvent.click(screen.getByRole("button", { name: /FAITH NJOKI BACHIA/ }));
+		const receipt = screen.getByRole("dialog");
+		// The amount is the hero, the counterparty under it.
+		expect(
+			within(receipt).getAllByText("-KES 2,450.00").length,
+		).toBeGreaterThan(0);
+		expect(within(receipt).getByText("FAITH NJOKI BACHIA")).toBeInTheDocument();
+		// Every field the old expanded grid showed survives in the sheet.
+		expect(within(receipt).getByText("28 Apr 2026, 14:22")).toBeInTheDocument();
+		expect(within(receipt).getByText("Buy Goods")).toBeInTheDocument();
+		expect(
+			within(receipt).getByText(
+				"Merchant Payment to 7408526 - FAITH NJOKI BACHIA",
+			),
+		).toBeInTheDocument();
+		expect(within(receipt).getByText("KES 10,000.00")).toBeInTheDocument();
+		expect(within(receipt).getByText("R1")).toBeInTheDocument();
+	});
+
+	it("shows the end-of-day balance in the day header", () => {
+		render(<TransactionList groups={groups} showPagination={false} />);
+		expect(screen.getByText("Bal KES 10,000.00")).toBeInTheDocument();
+	});
+
+	it("never expands a row in place: details live only in the receipt sheet", () => {
+		render(<TransactionList groups={groups} showPagination={false} />);
+		// Row buttons carry no expand affordance at all.
+		for (const rowButton of screen.getAllByRole("button", {
+			name: /· 14:22/,
+		})) {
+			expect(rowButton).not.toHaveAttribute("aria-expanded");
+		}
+		fireEvent.click(screen.getByRole("button", { name: /JOHN DOE/ }));
+		// The raw description renders exactly once, inside the sheet, so no
+		// inline detail panel appeared under the tapped row.
+		expect(
+			screen.getAllByText("Customer Transfer to - JOHN DOE"),
+		).toHaveLength(1);
+		expect(screen.getByRole("dialog")).toBeInTheDocument();
+	});
 });
 
 describe("category icons", () => {
@@ -1147,58 +1347,6 @@ describe("category icons", () => {
 	});
 });
 
-describe("counterparty display names", () => {
-	it("drops numeric tokens but keeps the full name for filtering", () => {
-		expect(counterpartyDisplayName("TERESIA WAKERA MUNENE")).toBe(
-			"TERESIA WAKERA MUNENE",
-		);
-		expect(counterpartyDisplayName("KPLC PREPAID Acc. 01450540651")).toBe(
-			"KPLC PREPAID",
-		);
-		expect(counterpartyDisplayName("NAIROBI BUDGET BUTCHERY 2")).toBe(
-			"NAIROBI BUDGET BUTCHERY",
-		);
-		expect(counterpartyDisplayName("RICHARD 2547***287")).toBe("RICHARD");
-		// A name that is only a number has nothing to strip to.
-		expect(counterpartyDisplayName("0712***752")).toBe("0712***752");
-		// A dropped reference must not leave its separator behind.
-		expect(counterpartyDisplayName("517819 - IM BANK LIMITED")).toBe(
-			"IM BANK LIMITED",
-		);
-	});
-});
-
-describe("transactions search", () => {
-	const g = (): Group[] => [
-		{
-			dayKey: "2026-04-28",
-			endBalance: 0,
-			endOwed: 0,
-			txs: [
-				row({
-					description:
-						"Business Payment from 303031 - Absa Bank Kenya PLC. via API. Original conversation ID is 66922406.",
-					category: "Receive",
-					type: "receive",
-					counterparty: "Absa Bank Kenya PLC",
-				}),
-			],
-		},
-	];
-
-	it("matches every search word, not the query as one substring", () => {
-		// The words are non-adjacent in the source, so a substring match fails.
-		expect(filterGroups(g(), "Absa PLC", "all", "all", "", "")).toHaveLength(
-			1,
-		);
-		expect(
-			filterGroups(g(), "absa bank", "all", "all", "", ""),
-		).toHaveLength(1);
-		expect(
-			filterGroups(g(), "Absa Equity", "all", "all", "", ""),
-		).toHaveLength(0);
-	});
-});
 
 describe("custom category filter", () => {
 	const customGroups = (): Group[] => [
@@ -1245,97 +1393,6 @@ describe("custom category filter", () => {
 	});
 });
 
-describe("CounterpartyCard", () => {
-	const cps: analysis.Counterparty[] = [
-		{
-			name: "Alice Wanjiru 0712000001",
-			number: "0712000001",
-			count: 3,
-			amount: -50000,
-			in: 0,
-			out: 50000,
-		},
-		{
-			name: "Bob Otieno",
-			number: "888880",
-			count: 2,
-			amount: 200000,
-			in: 200000,
-			out: 0,
-		},
-		{
-			name: "Calvin Kamara",
-			number: "07******752",
-			count: 1,
-			amount: -10000,
-			in: 0,
-			out: 10000,
-		},
-	];
-
-	const rows = () =>
-		screen
-			.getAllByTestId("counterparty-row")
-			.map((r) => r.textContent ?? "");
-
-	it("defaults to money out, ranked, with the number beside the name", () => {
-		render(<CounterpartyCard counterparties={cps} />);
-		const texts = rows();
-		// Bob has only inflow, so the default Out view leaves him out.
-		expect(texts).toHaveLength(2);
-		expect(texts[0]).toContain("Alice Wanjiru");
-		expect(texts[0]).toContain("0712000001");
-		expect(texts[0]).not.toContain("Alice Wanjiru 0712000001");
-		expect(texts[1]).toContain("Calvin Kamara");
-		// Masked numbers still surface as the number line.
-		expect(texts[1]).toContain("07******752");
-	});
-
-	it("re-ranks by money in when toggled", () => {
-		render(<CounterpartyCard counterparties={cps} />);
-		fireEvent.click(screen.getByRole("button", { name: "Money in" }));
-		const texts = rows();
-		expect(texts).toHaveLength(1);
-		expect(texts[0]).toContain("Bob Otieno");
-		expect(texts[0]).toContain("888880");
-	});
-
-	it("remembers the last direction across remounts", () => {
-		const first = render(<CounterpartyCard counterparties={cps} />);
-		fireEvent.click(screen.getByRole("button", { name: "Money in" }));
-		first.unmount();
-		// A fresh mount reads the persisted direction instead of the
-		// default Out ranking.
-		render(<CounterpartyCard counterparties={cps} />);
-		expect(screen.getByRole("button", { name: "Money in" })).toHaveAttribute(
-			"aria-pressed",
-			"true",
-		);
-		expect(rows()[0]).toContain("Bob Otieno");
-	});
-
-	it("hands the display name to the search filter on tap", () => {
-		const onSelect = vi.fn();
-		render(
-			<CounterpartyCard counterparties={cps} onSelectCounterparty={onSelect} />,
-		);
-		fireEvent.click(screen.getAllByTestId("counterparty-row")[0]);
-		expect(onSelect).toHaveBeenCalledWith("Alice Wanjiru");
-	});
-
-	it("caps the leaderboard at five names", () => {
-		const many: analysis.Counterparty[] = Array.from({ length: 8 }, (_, i) => ({
-			name: `Person ${i + 1}`,
-			number: "",
-			count: 1,
-			amount: -(i + 1) * 1000,
-			in: 0,
-			out: (i + 1) * 1000,
-		}));
-		render(<CounterpartyCard counterparties={many} />);
-		expect(rows()).toHaveLength(5);
-	});
-});
 
 describe("privacy mode", () => {
 	it("defaults off and round-trips through localStorage", () => {
@@ -1910,87 +1967,4 @@ describe("category budgets", () => {
 	});
 });
 
-describe("budget alerts", () => {
-	it("announces each category state once per month and again when it worsens", () => {
-		const memory = new Map<string, string>();
-		const store = {
-			getItem: (key: string) => memory.get(key) ?? null,
-			setItem: (key: string, value: string) => {
-				memory.set(key, value);
-			},
-		};
-		const risk = [foodNear, billsOver];
 
-		expect(unseenBudgetAlerts(risk, "2026-07", store)).toHaveLength(2);
-		markBudgetAlertsSeen(risk, "2026-07", store);
-		expect(unseenBudgetAlerts(risk, "2026-07", store)).toHaveLength(0);
-
-		// Moving past the cap is real news even though the category was
-		// already close.
-		const worsened = [
-			{ ...foodNear, state: "over", remaining: -10_000, percent: 101.7 },
-		];
-		expect(unseenBudgetAlerts(worsened, "2026-07", store)).toHaveLength(1);
-
-		// A new month starts quiet again.
-		expect(unseenBudgetAlerts(risk, "2026-08", store)).toHaveLength(2);
-		expect(budgetAlertKey("2026-07")).toBe("tripwire.budget-alerts.2026-07");
-	});
-
-	it("survives a storage that refuses to read", () => {
-		const broken = {
-			getItem: () => {
-				throw new Error("private mode");
-			},
-			setItem: () => {
-				throw new Error("private mode");
-			},
-		};
-		expect(unseenBudgetAlerts([foodNear], "2026-07", broken)).toHaveLength(1);
-		expect(() => markBudgetAlertsSeen([foodNear], "2026-07", broken)).not.toThrow();
-	});
-});
-
-describe("budget surfaces", () => {
-	it("renders the month's summary with the cap arithmetic", () => {
-		render(
-			<BudgetSummaryCard
-				summary={summarizeBudgets([foodNear, billsOver])}
-				month="2026-07"
-			/>,
-		);
-		expect(
-			screen.getByRole("heading", { name: "Monthly budgets" }),
-		).toBeInTheDocument();
-		expect(screen.getByText("July 2026")).toBeInTheDocument();
-		expect(screen.getByText("KES 9,820")).toBeInTheDocument();
-		expect(screen.getByText("of KES 10,000")).toBeInTheDocument();
-	});
-
-	it("leads the dashboard notice with the worst category", () => {
-		const onReview = vi.fn();
-		render(
-			<BudgetAlert
-				summary={summarizeBudgets([foodNear, billsOver])}
-				onReview={onReview}
-			/>,
-		);
-		expect(screen.getByRole("alert")).toHaveTextContent("1 budget is over");
-		expect(
-			screen.getByText(/Bills is KES\s*300 over its KES\s*4,000 budget/),
-		).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "Review budgets" }));
-		expect(onReview).toHaveBeenCalledTimes(1);
-	});
-
-	it("stays silent when no cap is at risk", () => {
-		const summary = summarizeBudgets([budgetStatus()]);
-		const { container } = render(
-			<BudgetAlert
-				summary={summary}
-				onReview={vi.fn()}
-			/>,
-		);
-		expect(container).toBeEmptyDOMElement();
-	});
-});
