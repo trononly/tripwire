@@ -1,21 +1,13 @@
 import { Link } from "react-router-dom";
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  FileUp,
-  Lightbulb,
-} from "lucide-react";
+import { useMemo } from "react";
+import { FileUp, Lightbulb } from "lucide-react";
 import type * as analysis from "../../bindings/mpesa-analyzer/internal/analysis/models";
 import type * as parser from "../../bindings/mpesa-analyzer/internal/parser/models";
 import type * as store from "../../bindings/mpesa-analyzer/internal/store/models";
-import { AnalyzeTransactions } from "../../bindings/mpesa-analyzer/parseservice";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SponsorCard } from "@/components/sponsor-card";
-import { useAdsEnabled } from "@/lib/ads";
 import { RecurringPayments } from "@/components/recurring-payments";
 import { usePlanReminders } from "@/hooks/use-plan-reminders";
 import { useRecurringPlans } from "@/hooks/use-recurring-plans";
@@ -31,133 +23,122 @@ import {
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
+import {
+  feeRangeLabel,
+  insightFinding,
+  monthOutCells,
+  type InsightFinding,
+  type MonthOutCell,
+} from "@/lib/insight-finding";
 
 /**
  * Insights - the depth layer on top of the same analysis result the
- * Dashboard uses. Every tile reads from AnalysisResult; a tile with no
- * underlying data yet shows an honest empty state, never invented numbers.
+ * Dashboard uses. The screen opens with the finding in words, then the
+ * cards that back it up. Every figure reads from AnalysisResult; a card
+ * with no underlying data yet shows an honest empty state, never invented
+ * numbers.
  */
 
 function TileEmpty({ children }: { children: React.ReactNode }) {
   return (
-    <CardContent className="pt-0 max-sm:px-4 max-sm:py-4 sm:pt-0">
-      <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+    <CardContent className="pt-0">
+      <p className="border border-dashed p-4 text-sm text-muted-foreground">
         {children}
       </p>
     </CardContent>
   );
 }
 
-/** Bills & subscriptions: detection always runs on full history (a monthly
- * cadence cannot be established from one month of transactions), while the
- * *display* is scoped: a selected month shows the bills active in it,
- * otherwise only bills paid within 30 days of the newest activity. */
-function BillsTile({
-  result,
-  plans,
-  lastPaid,
-  bands,
-  plansLoading,
-  simKey,
-  onSavePlan,
-  onDeletePlan,
-  onSkipPlan,
-}: {
-  result: analysis.AnalysisResult | null;
-  plans: store.RecurringPlan[];
-  lastPaid: Record<string, LastPaid | null>;
-  bands: Record<string, AmountBand[]>;
-  plansLoading: boolean;
-  simKey?: string | null;
-  onSavePlan: (draft: PlanDraft, id: string | null) => Promise<boolean>;
-  onDeletePlan: (id: string) => Promise<boolean>;
-  onSkipPlan: (id: string, due: string) => Promise<boolean>;
-}) {
-  // Detection always runs on the full history and the suggestions are not
-  // scoped to the month picker: a bill paid last month must stay visible when
-  // the user walks the calendar forward.
-  const payments = useMemo(() => result?.recurringPayments ?? [], [result]);
+/** The finding, in words: the biggest category's share of money out, then
+ * the month-over-month delta. Colours follow the direction, grey when
+ * there is nothing to compare. */
+function FindingCard({ finding }: { finding: InsightFinding }) {
+  const { lead, delta } = finding;
+  if (!lead && !delta) return null;
   return (
-    <RecurringPayments
-      payments={payments}
-      plans={plans}
-      lastPaid={lastPaid}
-      bands={bands}
-      loading={plansLoading}
-      simKey={simKey}
-      onSavePlan={onSavePlan}
-      onDeletePlan={onDeletePlan}
-      onSkipPlan={onSkipPlan}
-    />
+    <Card>
+      <CardContent className="space-y-2">
+        {lead && (
+          <p className="text-[15px] font-medium leading-snug">
+            {lead.category} took{" "}
+            <span className="num text-[22px] font-semibold">
+              {lead.perHundred}
+            </span>{" "}
+            of every{" "}
+            <span className="num text-[22px] font-semibold">100</span> shillings
+            you spent{lead.scope ? ` ${lead.scope}` : ""}.
+          </p>
+        )}
+        {delta?.kind === "changed" && (
+          <p className="text-[13px] text-muted-foreground">
+            {delta.subject} is{" "}
+            <span
+              className={cn(
+                "num font-medium",
+                delta.good ? "text-money-in" : "text-money-out",
+              )}
+            >
+              {delta.amount}
+            </span>{" "}
+            {delta.good ? "lighter" : "heavier"} than {delta.against}.
+          </p>
+        )}
+        {delta?.kind === "flat" && (
+          <p className="text-[13px] text-muted-foreground">
+            {delta.subject} matches {delta.against}.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
 /** Fee radar: what Safaricom took, straight from the Fees category and the
  * totals the analyzer already computes, split by fee kind so the Fuliza
  * access-fee part is visible on its own row. */
-function FeeRadarTile({ result }: { result: analysis.AnalysisResult | null }) {
-  const fees = result?.categories?.find((c) => c.name === "Fees");
-  const totalOut = result?.totals.totalOut ?? 0;
-  const totalFees = result?.totals.totalFees ?? 0;
-  const percent = totalOut > 0 ? ((totalFees / totalOut) * 100).toFixed(1) : null;
-  const byType = result?.feesByType ?? [];
-  const fulizaOwed = result?.fulizaOutstanding ?? 0;
+function FeeRadarCard({ result }: { result: analysis.AnalysisResult }) {
+  const totalFees = result.totals.totalFees;
+  const byType = result.feesByType ?? [];
+  const fulizaOwed = result.fulizaOutstanding;
 
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle>Fee radar</CardTitle>
+        <CardTitle>Fees Safaricom took</CardTitle>
+        <CardAction className="text-[12px] text-muted-foreground">
+          {feeRangeLabel(result)}
+        </CardAction>
       </CardHeader>
-      {!fees && totalFees === 0 ? (
+      {byType.length === 0 && totalFees === 0 ? (
         <TileEmpty>No fee transactions in this dataset yet.</TileEmpty>
       ) : (
-        <CardContent className="space-y-3 pt-0 max-sm:px-4 max-sm:py-4 sm:pt-0">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-sm text-muted-foreground">Total fees</span>
-            <span className="text-lg font-semibold tabular-nums">
-              {formatMoney(totalFees)}
-            </span>
-          </div>
-          {byType.length > 0 && (
-            <div className="space-y-1.5">
-              {byType.map((f) => (
-                <div
-                  key={f.key}
-                  className="flex items-baseline justify-between gap-2"
-                >
-                  <span className="text-sm text-muted-foreground">
-                    {f.label} · {f.count}
-                  </span>
-                  <span className="text-sm tabular-nums">
-                    {formatMoney(f.amount)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-          {fulizaOwed > 0 && (
-            <div className="flex items-baseline justify-between gap-2 border-t pt-2">
-              <span className="text-sm text-muted-foreground">
-                Fuliza owed
-              </span>
-              <span className="text-sm font-medium tabular-nums">
-                {formatMoney(fulizaOwed)}
+        <CardContent className="pt-0">
+          <div className="divide-y divide-border/60">
+            {byType.map((f) => (
+              <div
+                key={f.key}
+                className="flex items-baseline justify-between gap-2 py-1.5 text-sm"
+              >
+                <span className="text-muted-foreground">
+                  {f.label} · {f.count}
+                </span>
+                <span className="num font-medium">{formatMoney(f.amount)}</span>
+              </div>
+            ))}
+            <div className="flex items-baseline justify-between gap-2 py-1.5 text-sm">
+              <span>Total</span>
+              <span className="num font-semibold">
+                {formatMoney(totalFees)}
               </span>
             </div>
-          )}
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-sm text-muted-foreground">
-              Share of money out
-            </span>
-            <span className="text-sm tabular-nums">
-              {percent ? `${percent}%` : "-"}
-            </span>
-          </div>
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-sm text-muted-foreground">Fee entries</span>
-            <span className="text-sm tabular-nums">
-              {fees?.count ?? 0}
-            </span>
+            {fulizaOwed > 0 && (
+              <div className="flex items-baseline justify-between gap-2 py-1.5 text-sm">
+                <span className="text-muted-foreground">Fuliza owed</span>
+                <span className="num font-medium">
+                  {formatMoney(fulizaOwed)}
+                </span>
+              </div>
+            )}
           </div>
         </CardContent>
       )}
@@ -165,108 +146,26 @@ function FeeRadarTile({ result }: { result: analysis.AnalysisResult | null }) {
   );
 }
 
-/** vs last month: the last two monthly cashflow buckets compared. Two
- * months of coverage are required - with less, there is nothing honest to
- * compare. When Insights is scoped to one month, the comparison reaches
- * back into full history for the preceding month instead of erroring. */
-function VsLastMonthTile({
-  result,
-  fullMonths,
-  selectedMonth,
-}: {
-  result: analysis.AnalysisResult | null;
-  fullMonths: analysis.CashflowBucket[];
-  selectedMonth: string;
-}) {
-  const months = result?.cashflowMonthly ?? [];
-  let prev: analysis.CashflowBucket | undefined;
-  let last: analysis.CashflowBucket | undefined;
-  if (selectedMonth === "all") {
-    prev = months[months.length - 2];
-    last = months[months.length - 1];
-  } else {
-    const i = fullMonths.findIndex(
-      (b) => b.start.slice(0, 7) === selectedMonth,
-    );
-    if (i > 0) {
-      prev = fullMonths[i - 1];
-      last = fullMonths[i];
-    } else if (i === 0) {
-      last = fullMonths[0];
-    }
-  }
-
-  const rows: {
-    label: string;
-    value: string;
-    delta: string | null;
-    good: boolean | null;
-  }[] = [];
-  if (prev && last) {
-    for (const [label, a, b] of [
-      ["Money in", prev.in, last.in],
-      ["Money out", prev.out, last.out],
-    ] as const) {
-      const diff = b - a;
-      rows.push({
-        label,
-        value: formatMoney(b),
-        delta:
-          diff === 0
-            ? "no change"
-            : `${formatMoney(Math.abs(diff))} ${diff > 0 ? "more" : "less"}`,
-        // More money in is good; more money out is the bad direction.
-        good: diff === 0 ? null : label === "Money in" ? diff > 0 : diff < 0,
-      });
-    }
-  }
-
+/** Money out by month: the newest three buckets as plain cells. */
+function MonthOutCard({ cells }: { cells: MonthOutCell[] }) {
+  if (cells.length === 0) return null;
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle>Compared with last month</CardTitle>
-        <CardDescription>
-          {prev && last
-            ? `${monthLong(last.start.slice(0, 7))}${
-                selectedMonth !== "all" &&
-                selectedMonth === last.start.slice(0, 7)
-                  ? " (to date)"
-                  : ""
-              } against ${monthLong(prev.start.slice(0, 7))}.`
-            : "Monthly cashflow, compared."}
-        </CardDescription>
+        <CardTitle>Money out by month</CardTitle>
       </CardHeader>
-      {!prev || !last ? (
-        <TileEmpty>
-          Needs at least two months of transactions. Import a statement that
-          spans multiple months.
-        </TileEmpty>
-      ) : (
-        <CardContent className="space-y-3 pt-0 max-sm:px-4 max-sm:py-4 sm:pt-0">
-          {rows.map((r) => (
-            <div key={r.label} className="space-y-0.5">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-sm text-muted-foreground">{r.label}</span>
-                <span className="text-sm font-medium tabular-nums">
-                  {r.value}
-                </span>
-              </div>
-              <p
-                className={cn(
-                  "text-[12px]",
-                  r.good === null
-                    ? "text-muted-foreground"
-                    : r.good
-                      ? "text-money-in"
-                      : "text-money-out",
-                )}
-              >
-                {r.delta}
+      <CardContent className="pt-0">
+        <div className="grid grid-cols-3 gap-3 pt-1">
+          {cells.map((c) => (
+            <div key={c.label}>
+              <p className="num text-xl font-semibold">{c.value}</p>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
+                {c.label}
               </p>
             </div>
           ))}
-        </CardContent>
-      )}
+        </div>
+      </CardContent>
     </Card>
   );
 }
@@ -315,92 +214,13 @@ export default function Insights({
     if (id) return update(id, draft);
     return add(draft);
   };
-  // Per-month window over the active dataset. The pick persists across
-  // sessions; without one, start at the newest month (not All) when there
-  // is more than one.
-  const MONTH_KEY = "mpesa-analyzer.insights-month";
-  const months = useMemo(() => {
-    const set = new Set<string>();
-    for (const t of transactions) set.add(t.date.slice(0, 7));
-    return [...set].sort().reverse();
-  }, [transactions]);
-  const [month, setMonthState] = useState<string>("all");
-  const setMonth = (next: string | ((prev: string) => string)) => {
-    const value = typeof next === "function" ? next(month) : next;
-    setMonthState(value);
-    try {
-      localStorage.setItem(MONTH_KEY, value);
-    } catch {
-      /* private mode: month stays session-only */
-    }
-  };
-  useEffect(() => {
-    if (months.length === 0) return;
-    let stored: string | null = null;
-    try {
-      stored = localStorage.getItem(MONTH_KEY);
-    } catch {
-      /* ignore */
-    }
-    if (stored && (stored === "all" || months.includes(stored))) {
-      if (stored !== month) setMonthState(stored);
-      return;
-    }
-    // Start on the whole history: the newest month is often a one-day
-    // fragment, and a partial month reads as an empty Insights screen.
-    const next = "all";
-    if (next !== month) setMonth(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [months]);
-  const monthPickerRef = useRef<HTMLInputElement>(null);
-  // Native month picker for long histories: jump straight to a far month
-  // instead of stepping chip by chip. Out-of-range picks are blocked by
-  // min/max; an in-range month with no transactions shows honest empties.
-  const openMonthPicker = () => {
-    const el = monthPickerRef.current;
-    if (!el) return;
-    if (typeof el.showPicker === "function") {
-      try {
-        el.showPicker();
-        return;
-      } catch {
-        /* fall through to click/focus */
-      }
-    }
-    el.focus();
-    el.click();
-  };
-  const filteredTxs = useMemo(
-    () =>
-      month === "all"
-        ? transactions
-        : transactions.filter((t) => t.date.slice(0, 7) === month),
-    [transactions, month],
-  );
-  const [monthResult, setMonthResult] =
-    useState<analysis.AnalysisResult | null>(null);
-  useEffect(() => {
-    if (month === "all") {
-      setMonthResult(null);
-      return;
-    }
-    let cancelled = false;
-    setMonthResult(null);
-    AnalyzeTransactions(filteredTxs)
-      .then((r) => {
-        if (!cancelled) setMonthResult(r);
-      })
-      .catch((e) => {
-        if (!cancelled) console.error("Insights month analysis failed:", e);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [filteredTxs, month]);
-  const displayResult = month === "all" ? result : monthResult;
-  const displayLoading = loading || (month !== "all" && !monthResult);
-  // Sponsor slot visibility - user opt-out lives in Settings.
-  const showSponsor = useAdsEnabled();
+
+  // Detection always runs on the full history: a bill paid last month must
+  // stay visible, so the card is not scoped to any month.
+  const payments = useMemo(() => result?.recurringPayments ?? [], [result]);
+  const finding = useMemo(() => insightFinding(result), [result]);
+  const cells = useMemo(() => monthOutCells(result), [result]);
+
   if (transactions.length === 0) {
     return (
       <div className="space-y-6">
@@ -424,70 +244,9 @@ export default function Insights({
     );
   }
 
-  const monthSwitcher =
-    months.length > 1 ? (
-      <div className="flex w-full items-center justify-center gap-1 sm:w-auto">
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Older month"
-          disabled={month === months[months.length - 1]}
-          onClick={() =>
-            setMonth((m) => {
-              const i = months.indexOf(m);
-              if (i === -1) return months[0];
-              return months[Math.min(months.length - 1, i + 1)];
-            })
-          }
-          data-compact
-        >
-          <ChevronLeft className="size-4" />
-        </Button>
-        <button
-          type="button"
-          onClick={openMonthPicker}
-          aria-label={
-            month === "all" ? "Pick a month" : `Month: ${monthLabel(month)}`
-          }
-          className="min-w-28 border bg-card px-3 py-1.5 text-sm font-medium tabular-nums transition-colors hover:bg-muted/60"
-        >
-          {month === "all" ? "All months" : monthLabel(month)}
-        </button>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Newer month"
-          disabled={month === "all"}
-          onClick={() =>
-            setMonth((m) => {
-              const i = months.indexOf(m);
-              if (i <= 0) return "all";
-              return months[i - 1];
-            })
-          }
-          data-compact
-        >
-          <ChevronRight className="size-4" />
-        </Button>
-        <input
-          ref={monthPickerRef}
-          type="month"
-          aria-hidden="true"
-          tabIndex={-1}
-          className="h-0 w-0 opacity-0"
-          min={months[months.length - 1]}
-          max={months[0]}
-          value={month === "all" ? "" : month}
-          onChange={(e) => {
-            if (e.target.value) setMonth(e.target.value);
-          }}
-        />
-      </div>
-    ) : null;
-
   return (
     <div className="space-y-6">
-      <PageHeader title="Insights" actions={monthSwitcher} />
+      <PageHeader title="Insights" />
 
       {error && (
         <Card className="border-destructive">
@@ -497,56 +256,35 @@ export default function Insights({
         </Card>
       )}
 
-      {displayLoading || !displayResult ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Skeleton className="h-64 rounded-none lg:col-span-2" />
-          <Skeleton className="h-48 rounded-none" />
-          <Skeleton className="h-48 rounded-none" />
+      {loading || !result ? (
+        <div className="space-y-5">
+          <Skeleton className="h-28 rounded-none" />
+          <Skeleton className="h-64 rounded-none" />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Skeleton className="h-40 rounded-none" />
+            <Skeleton className="h-40 rounded-none" />
+          </div>
         </div>
       ) : (
         <div className="space-y-5">
-          <BillsTile
-            result={result}
+          <FindingCard finding={finding} />
+          <RecurringPayments
+            payments={payments}
             plans={plans}
             lastPaid={lastPaid}
             bands={bands}
-            plansLoading={plansLoading}
+            loading={plansLoading}
             simKey={simKey}
             onSavePlan={savePlan}
             onDeletePlan={remove}
             onSkipPlan={setSkipped}
           />
           <div className="grid items-stretch gap-4 lg:grid-cols-2">
-            <FeeRadarTile result={displayResult} />
-            <VsLastMonthTile
-              result={displayResult}
-              fullMonths={result?.cashflowMonthly ?? []}
-              selectedMonth={month}
-            />
+            <FeeRadarCard result={result} />
+            <MonthOutCard cells={cells} />
           </div>
-          {showSponsor && <SponsorCard />}
         </div>
       )}
     </div>
   );
-}
-
-/** "2026-09" → "September 2026". */
-function monthLong(ym: string) {
-  const [y, m] = ym.split("-").map(Number);
-  const names = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-  ];
-  return `${names[(m ?? 1) - 1] ?? m} ${y ?? ""}`;
-}
-
-/** "2026-09" → "Sep 26". */
-function monthLabel(ym: string) {
-  const [y, m] = ym.split("-").map(Number);
-  const names = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-  ];
-  return `${names[(m ?? 1) - 1] ?? m} '${String(y ?? "").slice(2)}`;
 }

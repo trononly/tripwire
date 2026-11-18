@@ -413,7 +413,7 @@ export function RecurringPayments({
             </button>
 
             {suggestionsOpen && (
-              <div className="space-y-2 pt-2">
+              <div className="divide-y divide-border/60">
                 {suggestions.map((payment) => {
                   const key = billKey(payment);
                   return (
@@ -533,7 +533,7 @@ function PlanRow({
               {amount !== null ? formatMoney(amount) : "Variable"}
             </p>
             <span
-              className={`mt-0.5 inline-block px-1.5 py-0.5 text-[11px] font-medium ${cadence.className}`}
+              className={`mt-0.5 inline-block px-1.5 py-0.5 text-[12px] font-medium ${cadence.className}`}
             >
               {cadence.label}
             </span>
@@ -657,8 +657,8 @@ function SuggestionRow({
         ];
 
   return (
-    <div className="rounded-lg border border-border">
-      <div className="flex items-start gap-1 p-3">
+    <div>
+      <div className="flex items-start gap-1 py-2.5">
         <button
           type="button"
           onClick={onToggle}
@@ -708,7 +708,7 @@ function SuggestionRow({
       </div>
 
       {expanded && (
-        <div className="space-y-1.5 border-t border-border p-2">
+        <div className="space-y-1.5 border-t border-border/60 py-2">
           {rows.map((row) => (
             <TrackAmountRow
               key={row.key}
@@ -748,7 +748,7 @@ function TrackAmountRow({
     >
       <span className="min-w-0">
         <span className="block text-xs tabular-nums">{label}</span>
-        <span className="block truncate text-[11px] text-muted-foreground">
+        <span className="block truncate text-[12px] text-muted-foreground">
           {detail}
         </span>
       </span>
