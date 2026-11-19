@@ -22,8 +22,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  AutomationDisconnectedPanel,
   AutomationInterruptedNotice,
+  AutomationStatusLine,
 } from "@/components/automation-gate";
 import { useAutomationAvailable } from "@/hooks/use-automation-available";
 import { RecurringPlanSheet } from "@/components/recurring-plan-sheet";
@@ -280,7 +280,11 @@ export function RecurringPayments({
       <CardContent className="pt-0">
         {auto.available && !auto.running ? (
           <div className="mb-3">
-            <AutomationDisconnectedPanel onRetry={auto.recheck} compact />
+            <AutomationStatusLine
+              available={auto.available}
+              running={auto.running}
+              onRetry={auto.recheck}
+            />
           </div>
         ) : null}
 
@@ -403,7 +407,7 @@ function PlanRow({
 
   return (
     <div className="flex items-start gap-3 py-4">
-      <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-none bg-muted text-muted-foreground">
+      <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-muted text-muted-foreground">
         <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
       </span>
       <div className="min-w-0 flex-1 space-y-1.5">

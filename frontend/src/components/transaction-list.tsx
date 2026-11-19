@@ -131,7 +131,7 @@ function TxRow({
   const moneyIn = tx.amount >= 0;
   const badge = (
     <span
-      className={`flex size-9 shrink-0 items-center justify-center rounded-none transition-colors group-hover/badge:bg-muted/80 ${tint}`}
+      className={`flex size-9 shrink-0 items-center justify-center rounded-[10px] transition-colors group-hover/badge:bg-muted/80 ${tint}`}
       aria-hidden
     >
       {category ? (
@@ -423,7 +423,7 @@ export function TransactionList({
           ))}
         </div>
       ) : (
-        <div className="rounded-none border py-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-lg border py-8 text-center text-sm text-muted-foreground">
           No transactions match your search or filters.
         </div>
       )}

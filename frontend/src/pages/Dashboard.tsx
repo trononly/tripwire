@@ -536,9 +536,9 @@ export default function Dashboard({
   if (transactions.length > 0 && !result && !error) {
     return (
       <div className="space-y-3" aria-busy="true">
-        <Skeleton className="h-28 rounded-none" />
-        <Skeleton className="h-56 rounded-none" />
-        <Skeleton className="h-64 rounded-none" />
+        <Skeleton className="h-28 rounded-lg" />
+        <Skeleton className="h-56 rounded-lg" />
+        <Skeleton className="h-64 rounded-lg" />
       </div>
     );
   }
@@ -549,8 +549,8 @@ export default function Dashboard({
         {smsMode ? (
           importing || booting ? (
             <div className="space-y-3" aria-busy="true">
-              <Skeleton className="h-28 rounded-none" />
-              <Skeleton className="h-56 rounded-none" />
+              <Skeleton className="h-28 rounded-lg" />
+              <Skeleton className="h-56 rounded-lg" />
             </div>
           ) : (
             <Card className="flex min-h-72 items-center justify-center">
