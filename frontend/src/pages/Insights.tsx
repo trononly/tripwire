@@ -246,12 +246,14 @@ export default function Insights({
   }, [scope.selected, scope.months]);
   const partiesLabel = selectedLabel ? `in ${selectedLabel}` : "across your whole history";
   const topParties = useMemo(() => {
+    // Money in only: who paid you most. Money out already has its own
+    // answer on this page, the donut's categories.
     const map = new Map<
       string,
       { name: string; total: number; count: number }
     >();
     for (const t of scopedTxs) {
-      if (t.amount >= 0 || !t.counterparty) continue;
+      if (t.amount <= 0 || !t.counterparty) continue;
       const key = t.counterpartyKey || t.counterparty;
       const entry = map.get(key) ?? {
         name: t.counterparty,
@@ -336,7 +338,7 @@ export default function Insights({
           {topParties.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Who you paid most</CardTitle>
+                <CardTitle>Who paid you most</CardTitle>
                 <CardDescription>{partiesLabel}</CardDescription>
               </CardHeader>
               <CardContent>
@@ -355,11 +357,11 @@ export default function Insights({
                         <span className="min-w-0 flex-1 truncate text-sm">
                           {p.name}
                           <span className="ml-1.5 text-xs text-muted-foreground">
-                            {p.count} {p.count === 1 ? "payment" : "payments"}
+                            {p.count} {p.count === 1 ? "time" : "times"}
                           </span>
                         </span>
-                        <span className="shrink-0 text-sm font-medium tabular-nums">
-                          {formatMoney(p.total)}
+                        <span className="shrink-0 text-sm font-medium tabular-nums text-money-in">
+                          +{formatMoney(p.total)}
                         </span>
                       </button>
                     </li>

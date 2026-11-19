@@ -89,11 +89,24 @@ export function MonthPickerSheet({
 
       <Drawer open={open} onOpenChange={setOpen}>
         <DrawerContent>
-          <DrawerHeader className="text-left">
-            <DrawerTitle>Pick a month</DrawerTitle>
-            <DrawerDescription>
-              Insights then speaks for that month alone.
-            </DrawerDescription>
+          <DrawerHeader className="flex flex-row items-start justify-between gap-2 text-left">
+            <div className="flex flex-col gap-0.5">
+              <DrawerTitle>Pick a month</DrawerTitle>
+              <DrawerDescription>
+                Insights then speaks for that month alone.
+              </DrawerDescription>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                vibrateIfEnabled(8);
+                onSelect(ALL_MONTHS);
+                setOpen(false);
+              }}
+              className="shrink-0 rounded-md px-2 py-1 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              All activity
+            </button>
           </DrawerHeader>
           <div className="px-4 pb-4">
             <div className="flex flex-wrap gap-1.5">
@@ -153,17 +166,6 @@ export function MonthPickerSheet({
                 );
               })}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                vibrateIfEnabled(8);
-                onSelect(ALL_MONTHS);
-                setOpen(false);
-              }}
-              className="tile mt-3 flex w-full justify-center"
-            >
-              Show everything
-            </button>
           </div>
         </DrawerContent>
       </Drawer>

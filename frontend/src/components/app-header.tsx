@@ -77,7 +77,7 @@ export function AppHeader(props: AppHeaderProps) {
 					<SidebarTrigger className="hidden lg:inline-flex" />
 					{/* One brand only: the sidebar owns it from lg up. */}
 					<BrandMark className="size-6 shrink-0 lg:hidden" />
-					<span className="hidden text-lg font-bold tracking-tight text-foreground sm:inline lg:hidden">
+					<span className="text-lg font-bold tracking-tight text-foreground lg:hidden">
 						Tripwire
 					</span>
 				</div>

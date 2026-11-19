@@ -497,9 +497,6 @@ function HomeCards({
               <CardTitle className="text-[13px] font-medium text-muted-foreground">
                 Coming up
               </CardTitle>
-              <CardAction className="text-[12px] font-normal text-muted-foreground">
-                your plans
-              </CardAction>
             </CardHeader>
             <CardContent>
               <div className="divide-y divide-border/70">
