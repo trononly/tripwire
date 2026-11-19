@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Events } from "@wailsio/runtime";
 import { toast } from "sonner";
 import {
@@ -49,7 +50,11 @@ const TABS: { id: SendKind; label: string; icon: typeof SendIcon }[] = [
  * show its call-SIM chooser; null lets the native bridge pick a line.
  */
 export default function Send({ simKey }: { simKey?: string | null }) {
-  const [tab, setTab] = useState<SendKind>("send");
+  const location = useLocation();
+  const paramTab = new URLSearchParams(location.search).get("tab");
+  const [tab, setTab] = useState<SendKind>(
+    paramTab === "pochi" ? "pochi" : "send",
+  );
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
   const [touched, setTouched] = useState(false);
@@ -57,6 +62,13 @@ export default function Send({ simKey }: { simKey?: string | null }) {
   // Clearing is safe only for the payment just made, not a random receipt
   // hours later.
   const startedAt = useRef(0);
+
+  // The Pay menu can re-navigate to a ?tab= Send is already showing, so the
+  // sync keys on location.key, which changes on every navigation: the menu
+  // choice always wins over the mounted state.
+  useEffect(() => {
+    if (paramTab === "pochi" || paramTab === "send") setTab(paramTab);
+  }, [location.key, location.search, paramTab]);
 
   useEffect(() => {
     const onTransaction = () => {

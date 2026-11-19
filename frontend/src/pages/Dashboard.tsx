@@ -33,8 +33,8 @@ import {
 } from "@/components/charts/category-breakdown";
 import { Private } from "@/components/privacy";
 import { maxDayOf } from "@/lib/date-window";
-import { useCustomCategoryTotals } from "@/hooks/use-custom-category-totals";
 import { useDonutMode } from "@/lib/donut-mode";
+import { useRecurringPlans } from "@/hooks/use-recurring-plans";
 import {
   useReduceMotionEnabled,
   vibrateIfEnabled,
@@ -42,9 +42,8 @@ import {
 import { useInView } from "@/hooks/use-in-view";
 import { cn } from "@/lib/utils";
 import { formatBucketLabel, formatDay, formatMoney } from "@/lib/format";
-import { addDays, flowWindow } from "@/lib/home-window";
-import { detectedNextDue } from "@/lib/recurring-plans";
-import { typeStyle } from "@/lib/transaction-types";
+import { addDays, flowWindow, updatedPhrase, windowSlices } from "@/lib/home-window";
+import { dueLabel, nextDue, toPlanLike } from "@/lib/recurring-plans";
 import {
   useTransactionGroups,
   type TransactionView,
@@ -71,21 +70,9 @@ function balanceParts(cents: number): [string, string | null] {
 }
 
 /** Local day key of a Date, "YYYY-MM-DD", for formatting back via formatDay. */
-function isoOf(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-/** Earliest transaction day in the dataset, "YYYY-MM-DD". */
-function minDay(transactions: parser.Transaction[]): string {
-  let min = "";
-  for (const t of transactions) {
-    const day = t.date.slice(0, 10);
-    if (min === "" || day < min) min = day;
-  }
-  return min;
+/** Local day as "YYYY-MM-DD". Display only: the hero's "Updated today". */
+function todayDay(): string {
+  return new Date().toLocaleDateString("en-CA");
 }
 
 // ---------------------------------------------------------------------------
@@ -244,24 +231,6 @@ const cadenceLabels: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Recent
-// ---------------------------------------------------------------------------
-
-const RECENT_SHOWN = 3;
-
-/** The newest transactions flattened out of the newest-first day groups. */
-function newestTxs(groups: ReturnType<typeof useTransactionGroups>) {
-  const out: TransactionView[] = [];
-  for (const g of groups) {
-    for (const tx of g.txs) {
-      out.push(tx);
-      if (out.length === RECENT_SHOWN) return out;
-    }
-  }
-  return out;
-}
-
-// ---------------------------------------------------------------------------
 // The five cards, one analyzed dataset
 // ---------------------------------------------------------------------------
 
@@ -276,29 +245,26 @@ function HomeCards({
 }) {
   const navigate = useNavigate();
   const [donutMode, setDonutMode] = useDonutMode();
-  const { totals: customTotals, loading: customLoading } =
-    useCustomCategoryTotals(transactions, donutMode === "custom");
+  const { plans } = useRecurringPlans();
+  const groups = useTransactionGroups(transactions);
+  const flow = flowWindow(result, transactions);
 
-  const builtInSlices: SpendSlice[] = (result.categories ?? []).map((c) => ({
-    key: c.name,
-    label: c.name,
-    amount: c.amount,
-    count: c.count,
-  }));
-  const customSlices: SpendSlice[] = customTotals.map((t) => ({
-    key: t.id || "none",
-    label: t.name,
-    amount: t.amount,
-    count: t.count,
-  }));
+  // Every figure on this page describes the same window: the flow line, the
+  // weekly bars and the donut all speak for the last 30 days of the dataset,
+  // so no card can quietly disagree with another.
+  const windowed = useMemo(
+    () => windowSlices(groups.flatMap((g) => g.txs), flow),
+    [groups, flow],
+  );
+  const builtInSlices = windowed.standard;
+  const customSlices = windowed.custom;
   const hasCustomSpend = customSlices.some((s) => s.amount < 0);
   const trimmedSlices = useMemo(
     () =>
       topSlicesWithRest(
         donutMode === "custom" ? customSlices : builtInSlices,
       ),
-    // The slice arrays are plain maps of the inputs; the memo keys on those.
-    [donutMode, customTotals, result],
+    [donutMode, windowed],
   );
 
   // Weeks are the dataset's own weekly buckets, newest five; the cause is
@@ -326,18 +292,14 @@ function HomeCards({
     });
   }, [result]);
 
-  const upcoming = useMemo(
-    () =>
-      [...(result.recurringPayments ?? [])]
-        .sort((a, b) => b.amount - a.amount)
-        .slice(0, UPCOMING_SHOWN),
-    [result],
-  );
-
-  const groups = useTransactionGroups(transactions);
-  const recent = useMemo(() => newestTxs(groups), [groups]);
-
-  const flow = flowWindow(result, transactions);
+  const upcoming = useMemo(() => {
+    const today = new Date();
+    return plans
+      .map((plan) => ({ plan, due: nextDue(toPlanLike(plan), today) }))
+      .filter(({ due }) => !Number.isNaN(due.getTime()))
+      .sort((a, b) => a.due.getTime() - b.due.getTime())
+      .slice(0, UPCOMING_SHOWN);
+  }, [plans]);
 
   return (
     <>
@@ -349,7 +311,7 @@ function HomeCards({
                 Balance
               </CardTitle>
               <CardAction className="text-[12px] font-normal text-muted-foreground">
-                as of {formatDay(flow.endDay)}
+                Updated {updatedPhrase(flow.endDay, todayDay())}
               </CardAction>
             </CardHeader>
             <CardContent>
@@ -406,11 +368,7 @@ function HomeCards({
       <Private label="Tap to reveal the spending breakdown">
         <CategoryBreakdown
           slices={trimmedSlices}
-          description={
-            result.categories?.length
-              ? `${formatDay(minDay(transactions))} to ${formatDay(latestDay)}`
-              : undefined
-          }
+          description={builtInSlices.length > 0 ? "last 30 days" : undefined}
           onSelectSlice={(key) =>
             key === REST_KEY
               ? navigate("/transactions")
@@ -460,26 +418,22 @@ function HomeCards({
             ) : undefined
           }
           empty={
-            donutMode === "custom" ? (
-              customLoading && customTotals.length === 0 ? (
-                <Skeleton className="mx-auto h-56 w-full" />
-              ) : !hasCustomSpend ? (
-                <div className="flex min-h-56 flex-col items-center justify-center gap-2 px-4 text-center">
-                  <Tags className="size-6 text-muted-foreground" />
-                  <p className="text-sm font-medium">Nothing labelled yet</p>
-                  <p className="text-xs text-muted-foreground">
-                    Tap a transaction&rsquo;s icon to give it a category; it
-                    shows up here.
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate("/transactions")}
-                  >
-                    Label transactions
-                  </Button>
-                </div>
-              ) : undefined
+            donutMode === "custom" && !hasCustomSpend ? (
+              <div className="flex min-h-56 flex-col items-center justify-center gap-2 px-4 text-center">
+                <Tags className="size-6 text-muted-foreground" />
+                <p className="text-sm font-medium">Nothing labelled yet</p>
+                <p className="text-xs text-muted-foreground">
+                  Tap a transaction&rsquo;s icon to give it a category; it
+                  shows up here.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/transactions")}
+                >
+                  Label transactions
+                </Button>
+              </div>
             ) : undefined
           }
         />
@@ -493,34 +447,33 @@ function HomeCards({
                 Coming up
               </CardTitle>
               <CardAction className="text-[12px] font-normal text-muted-foreground">
-                from your statements
+                your plans
               </CardAction>
             </CardHeader>
             <CardContent>
               <div className="divide-y divide-border/70">
-                {upcoming.map((p) => (
+                {upcoming.map(({ plan, due }) => (
                   <div
-                    key={`${p.counterparty} ${p.type}`}
+                    key={plan.id}
                     className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0"
                   >
                     <div className="min-w-0 flex-1">
-                      <p
-                        className="truncate text-[14px] font-medium"
-                        title={p.counterparty}
-                      >
-                        {p.counterparty}
+                      <p className="truncate text-[14px] font-medium" title={plan.name}>
+                        {plan.name}
                       </p>
                       <p className="text-[12px] text-muted-foreground">
-                        {cadenceLabels[p.cadence] ?? p.cadence}
+                        {cadenceLabels[plan.cadence] ?? plan.cadence}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="text-[12px] text-muted-foreground">
-                        {formatDay(isoOf(detectedNextDue(p)))}
+                        {dueLabel(due)}
                       </p>
-                      <p className="num text-[14px] font-medium">
-                        {amount(p.amount)}
-                      </p>
+                      {plan.amount > 0 && (
+                        <p className="num text-[14px] font-medium">
+                          {amount(plan.amount)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -530,51 +483,6 @@ function HomeCards({
         </Private>
       )}
 
-      <Private label="Tap to reveal recent activity">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-[13px] font-medium text-muted-foreground">
-              Recent
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recent.length === 0 ? (
-              <div className="space-y-2 py-1" aria-busy="true">
-                <Skeleton className="h-10 rounded-none" />
-                <Skeleton className="h-10 rounded-none" />
-                <Skeleton className="h-10 rounded-none" />
-              </div>
-            ) : (
-              <div className="divide-y divide-border/70">
-                {recent.map((tx) => (
-                  <div
-                    key={tx.id}
-                    className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[14.5px] font-medium">
-                        {tx.counterparty || typeStyle(tx.type).label}
-                      </p>
-                      <p className="num text-[12px] text-muted-foreground">
-                        {formatDay(tx.date)} · {typeStyle(tx.type).label}
-                      </p>
-                    </div>
-                    <p
-                      className={cn(
-                        "num shrink-0 text-[14.5px] font-medium",
-                        tx.amount >= 0 ? "text-money-in" : "text-foreground",
-                      )}
-                    >
-                      {tx.amount >= 0 ? "+" : "-"}
-                      {amount(tx.amount)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </Private>
     </>
   );
 }

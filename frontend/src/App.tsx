@@ -38,7 +38,6 @@ import Insights from "@/pages/Insights";
 import Categories from "@/pages/Categories";
 import Send from "@/pages/Send";
 import Lipa from "@/pages/Lipa";
-import Withdraw from "@/pages/Withdraw";
 
 /** Runs inside ThemeProvider so it can read the resolved in-app theme. */
 function SystemBarsSync() {
@@ -260,10 +259,6 @@ function App() {
                 <Route
                   path="/lipa"
                   element={<Lipa simKey={paySim} />}
-                />
-                <Route
-                  path="/withdraw"
-                  element={<Withdraw />}
                 />
                 <Route
                   path="/settings"

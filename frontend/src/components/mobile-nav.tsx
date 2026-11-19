@@ -6,9 +6,9 @@ import {
   Settings as SettingsIcon,
   Plus,
   Send as SendIcon,
+  Store,
   ShoppingCart,
   Landmark,
-  Banknote,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,12 @@ const actions = [
     icon: SendIcon,
   },
   {
+    to: "/send?tab=pochi",
+    label: "Pochi la Biashara",
+    description: "Pay a business till on Pochi",
+    icon: Store,
+  },
+  {
     to: "/lipa?tab=paybill",
     label: "Pay bill",
     description: "Paybill number with an account",
@@ -51,12 +57,6 @@ const actions = [
     label: "Buy goods",
     description: "Till number at a shop or restaurant",
     icon: ShoppingCart,
-  },
-  {
-    to: "/withdraw",
-    label: "Withdraw",
-    description: "Agent, ATM or to your bank",
-    icon: Banknote,
   },
 ] as const;
 

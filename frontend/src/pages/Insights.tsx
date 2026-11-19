@@ -12,11 +12,8 @@ import { RecurringPayments } from "@/components/recurring-payments";
 import { usePlanReminders } from "@/hooks/use-plan-reminders";
 import { useRecurringPlans } from "@/hooks/use-recurring-plans";
 import {
-  amountBands,
-  billKey,
   lastPaidOf,
   toPlanLike,
-  type AmountBand,
   type LastPaid,
   type PlanDraft,
 } from "@/lib/recurring-plans";
@@ -198,16 +195,6 @@ export default function Insights({
     return out;
   }, [plans, transactions]);
 
-  // Split a detected payee's amounts (a KES 69 bundle and a KES 16,500
-  // transfer to the same person) so each pattern can become its own plan.
-  const bands = useMemo(() => {
-    const out: Record<string, AmountBand[]> = {};
-    for (const payment of result?.recurringPayments ?? []) {
-      out[billKey(payment)] = amountBands(transactions, payment);
-    }
-    return out;
-  }, [result, transactions]);
-
   usePlanReminders(plans, lastPaid, plansLoading);
 
   const savePlan = async (draft: PlanDraft, id: string | null) => {
@@ -215,9 +202,6 @@ export default function Insights({
     return add(draft);
   };
 
-  // Detection always runs on the full history: a bill paid last month must
-  // stay visible, so the card is not scoped to any month.
-  const payments = useMemo(() => result?.recurringPayments ?? [], [result]);
   const finding = useMemo(() => insightFinding(result), [result]);
   const cells = useMemo(() => monthOutCells(result), [result]);
 
@@ -269,10 +253,8 @@ export default function Insights({
         <div className="space-y-5">
           <FindingCard finding={finding} />
           <RecurringPayments
-            payments={payments}
             plans={plans}
             lastPaid={lastPaid}
-            bands={bands}
             loading={plansLoading}
             simKey={simKey}
             onSavePlan={savePlan}
