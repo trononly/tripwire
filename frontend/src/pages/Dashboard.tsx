@@ -63,6 +63,14 @@ function amount(cents: number): string {
   });
 }
 
+/** Whole shillings for the quiet flow line: "122,734". Cents are ledger
+ * detail, not glance detail. */
+function whole(cents: number): string {
+  return new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(
+    Math.abs(cents) / 100,
+  );
+}
+
 /** "KES 62,978.00" -> ["KES 62,978", "00"]; the cents render smaller. */
 function balanceParts(cents: number): [string, string | null] {
   const [whole, frac] = formatMoney(cents).split(".");
@@ -334,13 +342,13 @@ function HomeCards({
               </p>
               <p className="num mt-1.5 text-[13px] text-muted-foreground">
                 <span className="font-medium text-money-in">
-                  +{amount(flow.inCents)} in
+                  In {whole(flow.inCents)}
                 </span>
                 {" · "}
                 <span className="font-medium text-money-out">
-                  -{amount(flow.outCents)} out
+                  Out {whole(flow.outCents)}
                 </span>
-                <span> last 30 days, fees {amount(flow.feeCents)}</span>
+                <span> last 30 days, fees {whole(flow.feeCents)}</span>
               </p>
             </CardContent>
           </Card>
