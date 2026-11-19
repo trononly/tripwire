@@ -28,7 +28,7 @@ type StepTarget = {
 type TourStep = {
   id: string;
   title: string;
-  /** One line in the teacher's voice. The lesson stays in `body`. */
+  /** One plain line that adds a fact the body does not. Empty when folded. */
   quip: string;
   body: string;
   pose: Pose;
@@ -36,32 +36,38 @@ type TourStep = {
   route: string;
   /** Null for a closing card with nothing on the app to point at. */
   target: StepTarget | null;
+  /**
+   * The lesson is the interaction: no veil, no cutout, no press shield and
+   * no card, just the live app and a chip that moves the tour along.
+   */
+  interactive?: boolean;
 };
 
 const STEPS: readonly TourStep[] = [
   {
     id: "home",
-    title: "This is your money, at a glance",
-    quip: "The number you came for. I saved you the scrolling.",
-    body: "The hero is the balance at the end of your latest statement, with money in and out for the last 30 days. Nothing active yet? This card is where you pick or import a statement.",
+    title: "Your balance",
+    quip: "In and out cover the last 30 days.",
+    body: "The balance shows your money right now. With no statement active, this card opens your history.",
     pose: "point",
     route: "/",
     target: { selector: 'main [data-slot="card"]' },
   },
   {
     id: "pay",
-    title: "Pay without hunting menus",
-    quip: "The Pay button. Where your thumb already lives.",
-    body: "Four destinations: send money, Pochi la Biashara, pay bill and buy goods. Tripwire fills the M-Pesa menu and stops at your PIN.",
+    title: "Paying someone",
+    quip: "",
+    body: "Tap Pay for four destinations: send money, Pochi la Biashara, pay bill and buy goods.",
     pose: "smug",
     route: "/",
     target: { selector: 'nav button[aria-label="Pay"]' },
+    interactive: true,
   },
   {
     id: "breakdown",
-    title: "Every shilling gets a name",
-    quip: "It went somewhere. I made it confess.",
-    body: "The ring splits the last 30 days by category. Tap one to open those rows in Transactions.",
+    title: "Where the money went",
+    quip: "Tap a category to see its transactions.",
+    body: "The ring groups the last 30 days by category.",
     pose: "smug",
     route: "/",
     target: {
@@ -71,9 +77,9 @@ const STEPS: readonly TourStep[] = [
   },
   {
     id: "coming-up",
-    title: "The bills that arrive anyway",
-    quip: "These ones don't forget you. I checked.",
-    body: "Coming up lists your repeating payments and when they land. Press and hold one, or tap it, to edit or delete it.",
+    title: "What is coming up",
+    quip: "",
+    body: "Coming up lists repeating payments and their next date. Tap or hold a payment to edit or delete it.",
     pose: "flustered",
     route: "/",
     target: {
@@ -83,9 +89,9 @@ const STEPS: readonly TourStep[] = [
   },
   {
     id: "history",
-    title: "One statement at a time",
-    quip: "That chip in the corner is the whole filing cabinet.",
-    body: "The top-bar chip opens your statement history: switch the active statement, delete one, or import a fresh M-Pesa PDF.",
+    title: "Your statement history",
+    quip: "",
+    body: "The top-bar chip opens your statement history. Switch the active statement, import a new PDF statement or delete an old one.",
     pose: "proud",
     route: "/",
     target: {
@@ -94,33 +100,47 @@ const STEPS: readonly TourStep[] = [
   },
   {
     id: "ledger",
-    title: "Every row opens its receipt",
-    quip: "Go on, poke one. I'll wait.",
-    body: "Tap a row for the receipt: amount, balance after, description and reference. Filters narrow the list; the row icon labels it.",
+    title: "The ledger",
+    quip: "",
+    body: "Tap any transaction to see the full receipt. The icon on the left sets its category.",
     pose: "point",
     route: "/transactions",
     target: {
       selector:
         'main section button[aria-label^="Set category"] + button, main section button[aria-label^="Change category"] + button',
     },
+    interactive: true,
+  },
+  {
+    id: "filters",
+    title: "Filters and search",
+    quip: "",
+    body: "Search matches the description, category or counterparty. Tap Filters to narrow the list by category, direction or date.",
+    pose: "point",
+    route: "/transactions",
+    target: {
+      selector: "main button:has(svg.lucide-sliders-horizontal)",
+    },
+    interactive: true,
   },
   {
     id: "insights",
-    title: "Pick the month you mean",
-    quip: "Yes, that month. Pick another one if you must.",
-    body: "The month tile scopes the whole page: the biggest finding, fees, who paid you most, and repeating bills.",
+    title: "Insights by month",
+    quip: "",
+    body: "Tap the month to scope the page to one month. All activity shows the whole history.",
     pose: "flustered",
     route: "/insights",
     target: {
       selector: 'main button[aria-haspopup="dialog"]',
       text: "activity",
     },
+    interactive: true,
   },
   {
     id: "privacy",
-    title: "Keep the numbers to yourself",
-    quip: "Someone is reading over your shoulder. I'll handle it.",
-    body: "The eye blurs every figure until you tap it. Turn it off the same way.",
+    title: "Privacy mode",
+    quip: "",
+    body: "The eye blurs every figure. Tap a figure to reveal it, or tap the eye again to turn the mode off.",
     pose: "proud",
     route: "/",
     target: {
@@ -129,9 +149,9 @@ const STEPS: readonly TourStep[] = [
   },
   {
     id: "notifications",
-    title: "A nudge before the bill",
-    quip: "I'll warn you before the rent sneaks up. Try to look grateful.",
-    body: "Notifications let Tripwire warn you before a repeating bill lands. Declining changes nothing else.",
+    title: "One last thing",
+    quip: "",
+    body: "Notifications let Tripwire warn you before a repeating bill is due. Declining changes nothing else.",
     pose: "proud",
     route: "/",
     target: null,
@@ -466,8 +486,9 @@ function Mascot({ pose, className }: { pose: Pose; className?: string }) {
 
 /**
  * First-run tour. Mounted for the life of the app and hidden once done, so
- * `restart()` from developer tools reopens it without a relaunch. Each step
- * lights up a real control on the real screen instead of describing it.
+ * `restart()` from developer tools reopens it without a relaunch. A step
+ * either spotlights a real control or, when the lesson is the interaction,
+ * hands the live app over and keeps only a chip on screen.
  */
 export function OnboardingTour({
   onRemoveDemo,
@@ -481,6 +502,7 @@ export function OnboardingTour({
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [cardHeight, setCardHeight] = useState(0);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const askedNotification = useRef(false);
   const step = STEPS[Math.min(index, STEPS.length - 1)];
@@ -491,19 +513,20 @@ export function OnboardingTour({
   // Lock the document scroller, not the body: an overflow-hidden body
   // becomes its own scroll container and un-sticks the top bar.
   useEffect(() => {
-    if (done) return;
+    if (done || step.interactive) return;
     const root = document.documentElement;
     const previous = root.style.overflow;
     root.style.overflow = "hidden";
     return () => {
       root.style.overflow = previous;
     };
-  }, [done]);
+  }, [done, step.interactive]);
 
   // The veil is painted by a box-shadow, not by a hit-target, so the page
   // stays measurable underneath: swallow every press outside the card here.
+  // An interactive step owns no veil, so the real UI stays live.
   useEffect(() => {
-    if (done) return;
+    if (done || step.interactive) return;
     const swallow = (event: Event) => {
       const target = event.target;
       if (target instanceof Element && target.closest("[data-tour-card]")) {
@@ -518,7 +541,29 @@ export function OnboardingTour({
       window.removeEventListener("pointerdown", swallow, true);
       window.removeEventListener("click", swallow, true);
     };
-  }, [done]);
+  }, [done, step.interactive]);
+
+  // A sheet covers the bottom of the screen, so the chip moves to the top
+  // while one is open: still above it, still tappable, clear of its buttons.
+  useEffect(() => {
+    if (done || !step.interactive) return;
+    const check = () => {
+      setDrawerOpen(
+        !!document.querySelector(
+          '[data-vaul-drawer][data-state="open"], [data-vaul-overlay][data-state="open"]',
+        ),
+      );
+    };
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-state"],
+    });
+    return () => observer.disconnect();
+  }, [done, step.interactive]);
 
   const finish = useCallback(() => {
     askedNotification.current = false;
@@ -556,8 +601,8 @@ export function OnboardingTour({
     // Re-navigating to the current route pushes a history entry and makes
     // ScrollToTop jump to the top, which would fight the step's own scroll.
     if (!onRoute(current.route)) navigate(current.route);
+    setRect(null);
     if (!target) {
-      setRect(null);
       return;
     }
 
@@ -566,6 +611,9 @@ export function OnboardingTour({
       if (cancelled) return;
       const el = onRoute(current.route) ? resolveTarget(target) : null;
       if (el) {
+        // An interactive step only checks the target exists; the app stays
+        // where the user left it, unscrolled and live.
+        if (current.interactive) return;
         void bringIntoView(el, reduceMotion).then(() => {
           if (cancelled) return;
           setRect(el.getBoundingClientRect());
@@ -645,6 +693,72 @@ export function OnboardingTour({
     ),
     240,
   );
+
+  if (step.interactive) {
+    const navRect = document
+      .querySelector("nav.fixed")
+      ?.getBoundingClientRect();
+    const aboveNav =
+      navRect && navRect.width > 0 && navRect.top < viewportHeight
+        ? viewportHeight - navRect.top + 8
+        : inset.bottom + EDGE;
+    return (
+      <div
+        data-tour-chip
+        data-tour-step={step.id}
+        role="region"
+        aria-label={`Onboarding step ${index + 1} of ${STEPS.length}`}
+        className={cn(
+          "pointer-events-auto fixed left-1/2 z-[100] -translate-x-1/2 rounded-2xl border border-border bg-background p-3 text-foreground shadow-2xl",
+          !reduceMotion &&
+            "animate-in fade-in slide-in-from-bottom-1 duration-150",
+        )}
+        style={{
+          top: drawerOpen ? Math.max(inset.top, 0) + 8 : undefined,
+          bottom: drawerOpen ? undefined : aboveNav,
+          width: Math.min(
+            viewportWidth - inset.left - inset.right - EDGE * 2,
+            416,
+          ),
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">
+            {index + 1}/{STEPS.length}
+          </span>
+          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+            {step.title}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={finish}
+            className="h-7 shrink-0 px-2 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Skip
+          </Button>
+          {drawerOpen && (
+            <Button size="sm" onClick={advance} className="shrink-0">
+              Next
+            </Button>
+          )}
+        </div>
+        {!drawerOpen && (
+          <div className="mt-1.5 flex items-end gap-3">
+            <p
+              aria-live="polite"
+              className="min-w-0 flex-1 text-[12px] leading-snug text-muted-foreground"
+            >
+              {step.body}
+            </p>
+            <Button size="sm" onClick={advance} className="shrink-0">
+              Next
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   let cardLeft = EDGE;
   let cardTop = 0;
@@ -763,16 +877,16 @@ export function OnboardingTour({
             <div className="shrink-0">
               <Mascot pose={step.pose} className="size-20 sm:size-20" />
             </div>
-            <div className="min-w-0 flex-1 pr-10">
+            <div className="min-w-0 flex-1 pr-10" aria-live="polite">
               <h2
                 id="onboarding-title"
                 className="text-[15px] font-semibold leading-snug tracking-tight"
               >
                 {step.title}
               </h2>
-              <p aria-live="polite" className="mt-1 text-[13px] leading-snug">
-                {step.quip}
-              </p>
+              {step.quip && (
+                <p className="mt-1 text-[13px] leading-snug">{step.quip}</p>
+              )}
             </div>
           </div>
           <p className="mt-2 min-h-0 overflow-y-auto overscroll-contain text-[13px] leading-relaxed text-muted-foreground">
