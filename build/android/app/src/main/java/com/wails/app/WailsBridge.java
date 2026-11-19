@@ -1623,13 +1623,24 @@ public class WailsBridge {
 
     /**
      * Ask Android to exempt Tripwire from battery optimization. The first
-     * stop is the system dialog that names the app with Yes/No. If the OEM
-     * has no such page, fall back to the app's own App info page, then to the
-     * system-wide optimization list. The app never grants the exemption
-     * itself; every stop is the user's decision.
+     * stop is the app's own App info page, where this build's name is in
+     * the URI, so the user always lands on Tripwire and reaches Battery
+     * from there. OEMs without that page get the system Yes/No dialog
+     * naming the app, then the system-wide list. The app never grants the
+     * exemption itself; every stop is the user's decision.
      */
     public void openBatterySettings() {
         mainHandler.post(() -> {
+            try {
+                Intent details = new Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + activity.getPackageName()));
+                details.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(details);
+                return;
+            } catch (Exception e) {
+                Log.e(TAG, "openBatterySettings app info failed", e);
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 try {
                     Intent request = new Intent(
@@ -1641,16 +1652,6 @@ public class WailsBridge {
                 } catch (Exception e) {
                     Log.e(TAG, "openBatterySettings request failed", e);
                 }
-            }
-            try {
-                Intent details = new Intent(
-                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        Uri.parse("package:" + activity.getPackageName()));
-                details.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                activity.startActivity(details);
-                return;
-            } catch (Exception e) {
-                Log.e(TAG, "openBatterySettings app info failed", e);
             }
             try {
                 Intent list = new Intent(

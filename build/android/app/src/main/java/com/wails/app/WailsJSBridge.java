@@ -357,8 +357,8 @@ public class WailsJSBridge {
     }
 
     /**
-     * Open the system dialog that asks whether to exempt Tripwire from
-     * battery optimization, falling back to App info then the system list.
+     * Open the app's own App info page (the package name is in the URI),
+     * falling back to the system exemption dialog then the system list.
      * Called from JavaScript: wails.openBatterySettings()
      */
     @JavascriptInterface

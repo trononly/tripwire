@@ -223,8 +223,9 @@ export function automationDiagnostics(): AutomationDiagnostics | null {
 }
 
 /**
- * Open Android's battery-exemption dialog for this app, falling back to App
- * info, then the system list. The user decides; nothing is granted here.
+ * Open Tripwire's own App info page, where Battery lives one tap away, then
+ * the system dialog, then the system list. The user decides; nothing is
+ * granted here.
  */
 export function openBatterySettings(): void {
 	window.wails?.openBatterySettings?.();
