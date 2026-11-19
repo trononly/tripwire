@@ -19,7 +19,6 @@ import {
 } from "@/lib/recurring-plans";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { PageHeader } from "@/components/page-header";
 import {
   feeRangeLabel,
   insightFinding,
@@ -59,11 +58,9 @@ function FindingCard({ finding }: { finding: InsightFinding }) {
           <p className="text-[15px] font-medium leading-snug">
             {lead.category} took{" "}
             <span className="num text-[22px] font-semibold">
-              {lead.perHundred}
+              {lead.perHundred}%
             </span>{" "}
-            of every{" "}
-            <span className="num text-[22px] font-semibold">100</span> shillings
-            you spent{lead.scope ? ` ${lead.scope}` : ""}.
+            of everything you spent{lead.scope ? ` ${lead.scope}` : ""}.
           </p>
         )}
         {delta?.kind === "changed" && (
@@ -208,7 +205,6 @@ export default function Insights({
   if (transactions.length === 0) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Insights" />
         <Card className="flex min-h-72 items-center justify-center">
           <CardContent className="flex max-w-sm flex-col items-center gap-4 pt-2 text-center">
             <Lightbulb className="size-8 text-muted-foreground" />
@@ -230,8 +226,6 @@ export default function Insights({
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Insights" />
-
       {error && (
         <Card className="border-destructive">
           <CardContent className="pt-4 text-sm text-destructive">
@@ -251,7 +245,7 @@ export default function Insights({
         </div>
       ) : (
         <div className="space-y-5">
-          <FindingCard finding={finding} />
+      <FindingCard finding={finding} />
           <RecurringPayments
             plans={plans}
             lastPaid={lastPaid}
