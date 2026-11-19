@@ -22,6 +22,7 @@ import { useChangelogPrefetch } from "@/hooks/use-changelog";
 import { UpdateDialog } from "@/components/update-dialog";
 import { RestrictedSettingsGuide } from "@/components/restricted-settings-guide";
 import { MobileNav } from "@/components/mobile-nav";
+import { OnboardingTour } from "@/components/onboarding-tour";
 import { useStatements } from "@/hooks/use-statements";
 import { useSmsEngine } from "@/hooks/use-sms-engine";
 import { useSimNames } from "@/hooks/use-sim-names";
@@ -285,6 +286,8 @@ function App() {
             </main>
             <MobileNav />          </SidebarInset>
         </SidebarProvider>
+
+        <OnboardingTour />
 
         <ImportStatementDialog
           open={importOpen}

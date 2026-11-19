@@ -1,7 +1,7 @@
 import { useTheme } from "next-themes";
 import { Link } from "react-router-dom";
 import { ArrowRight, Smartphone } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   HAPTICS_KEY,
@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { simName } from "@/components/sim-switcher";
 import { useDevMode } from "@/hooks/use-konami-code";
+import { restart as restartOnboarding } from "@/lib/onboarding-state";
 import {
   drainPendingSms,
   hasPhoneStatePermission,
@@ -425,6 +426,20 @@ export default function Settings({
                 Test arrival announcement
               </Button>
             )}
+            <div className="mt-4 border-t border-border">
+              <SettingRow
+                label="Restart onboarding session"
+                sub="Replays the tour from the first step."
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={restartOnboarding}
+                >
+                  Restart
+                </Button>
+              </SettingRow>
+            </div>
           </CardContent>
         </Card>
       )}
