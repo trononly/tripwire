@@ -273,6 +273,79 @@ function TxDataTable({ txs }: { txs: parser.Transaction[] }) {
     [previewGroups],
   );
 
+  // A filtered ledger must announce itself: the dashboard donut deep links
+  // in with ?category=, and a list of only one category reads as broken
+  // data unless the active filters are visible and one tap to clear.
+  const activeFilterChips = useMemo(() => {
+    const chips: { key: string; label: string; onClear: () => void }[] = [];
+    const clearParam = (name: string) =>
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete(name);
+          return next;
+        },
+        { replace: true },
+      );
+    if (categoryFilter !== "all") {
+      chips.push({
+        key: "category",
+        label: categoryFilter,
+        onClear: () => {
+          setCategoryFilter("all");
+          setDraftCategory("all");
+          clearParam("category");
+        },
+      });
+    }
+    if (customFilter !== "all") {
+      chips.push({
+        key: "custom",
+        label:
+          customFilter === "none"
+            ? "Uncategorized"
+            : (userCategories.find((c) => c.id === customFilter)?.name ??
+              "Custom"),
+        onClear: () => {
+          setCustomFilter("all");
+          setDraftCustom("all");
+          clearParam("custom");
+        },
+      });
+    }
+    if (directionFilter !== "all") {
+      chips.push({
+        key: "direction",
+        label: directionFilter === "in" ? "Money in" : "Money out",
+        onClear: () => setDirectionFilter("all"),
+      });
+    }
+    if (fromDate || toDate) {
+      chips.push({
+        key: "dates",
+        label:
+          fromDate && toDate
+            ? `${fromDate} – ${toDate}`
+            : fromDate
+              ? `From ${fromDate}`
+              : `To ${toDate}`,
+        onClear: () => {
+          setFromDate("");
+          setToDate("");
+        },
+      });
+    }
+    return chips;
+  }, [
+    categoryFilter,
+    customFilter,
+    directionFilter,
+    fromDate,
+    toDate,
+    userCategories,
+    setSearchParams,
+  ]);
+
   const applyDraft = () => {
     vibrateIfEnabled(12);
     setCategoryFilter(draftCategory);
@@ -358,6 +431,24 @@ function TxDataTable({ txs }: { txs: parser.Transaction[] }) {
             Filters
           </Button>
         </div>
+        {activeFilterChips.length > 0 && (
+          <div
+            className="flex flex-wrap items-center gap-1.5 pt-1.5"
+            aria-label="Active filters"
+          >
+            {activeFilterChips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={chip.onClear}
+                className="flex items-center gap-1 rounded-full border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                {chip.label}
+                <X className="size-3" />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {/* Filter sheet: chip toggles + presets + sticky count CTA. */}
       <Drawer open={filtersOpen} onOpenChange={setFiltersOpen}>
