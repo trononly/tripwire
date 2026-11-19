@@ -357,13 +357,22 @@ public class WailsJSBridge {
     }
 
     /**
-     * Open Android's battery-optimization list; the user chooses whether to
-     * exempt Tripwire.
+     * Open the system dialog that asks whether to exempt Tripwire from
+     * battery optimization, falling back to App info then the system list.
      * Called from JavaScript: wails.openBatterySettings()
      */
     @JavascriptInterface
     public void openBatterySettings() {
         executor.execute(bridge::openBatterySettings);
+    }
+
+    /**
+     * True when Android already exempts Tripwire from battery optimization.
+     * Called from JavaScript: wails.isIgnoringBatteryOptimizations()
+     */
+    @JavascriptInterface
+    public boolean isIgnoringBatteryOptimizations() {
+        return bridge.isIgnoringBatteryOptimizations();
     }
 
     /**

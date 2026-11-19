@@ -17,6 +17,7 @@ interface WailsAndroidBridge {
 	openUssdAutomationSettings?(): void;
 	getAutomationDiagnostics?(): string;
 	openBatterySettings?(): void;
+	isIgnoringBatteryOptimizations?(): boolean;
 	hideSplash?(): void;
 	startUssdQuickEntry?(scriptJson: string, simKey?: string): void;
 	scheduleReminders?(json: string): void;
@@ -221,9 +222,21 @@ export function automationDiagnostics(): AutomationDiagnostics | null {
 	}
 }
 
-/** Open Android's battery-optimization list; the user decides the exemption. */
+/**
+ * Open Android's battery-exemption dialog for this app, falling back to App
+ * info, then the system list. The user decides; nothing is granted here.
+ */
 export function openBatterySettings(): void {
 	window.wails?.openBatterySettings?.();
+}
+
+/**
+ * True when Android already exempts Tripwire from battery optimization.
+ * Read-only: the only prompt is openBatterySettings. False off-Android.
+ */
+export function isIgnoringBatteryOptimizations(): boolean {
+	if (!isAndroidBridge()) return false;
+	return window.wails?.isIgnoringBatteryOptimizations?.() ?? false;
 }
 
 /** Dismiss the Android launch splash once the UI has painted. */

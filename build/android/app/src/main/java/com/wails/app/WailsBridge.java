@@ -1622,25 +1622,64 @@ public class WailsBridge {
     }
 
     /**
-     * Open Android's battery-optimization list. The user decides whether to
-     * exempt Tripwire; the app never asks for the exemption itself.
+     * Ask Android to exempt Tripwire from battery optimization. The first
+     * stop is the system dialog that names the app with Yes/No. If the OEM
+     * has no such page, fall back to the app's own App info page, then to the
+     * system-wide optimization list. The app never grants the exemption
+     * itself; every stop is the user's decision.
      */
     public void openBatterySettings() {
         mainHandler.post(() -> {
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    Intent intent = new Intent(
-                            Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    activity.startActivity(intent);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try {
+                    Intent request = new Intent(
+                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:" + activity.getPackageName()));
+                    request.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    activity.startActivity(request);
                     return;
+                } catch (Exception e) {
+                    Log.e(TAG, "openBatterySettings request failed", e);
                 }
-                openAppSettings();
+            }
+            try {
+                Intent details = new Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + activity.getPackageName()));
+                details.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(details);
+                return;
+            } catch (Exception e) {
+                Log.e(TAG, "openBatterySettings app info failed", e);
+            }
+            try {
+                Intent list = new Intent(
+                        Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                list.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(list);
             } catch (Exception e) {
                 Log.e(TAG, "openBatterySettings failed", e);
-                openAppSettings();
             }
         });
+    }
+
+    /**
+     * True when Android already exempts Tripwire from Doze battery
+     * optimization. Read-only; openBatterySettings is the only prompt.
+     */
+    public boolean isIgnoringBatteryOptimizations() {
+        try {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                return true;
+            }
+            PowerManager pm =
+                    (PowerManager) activity.getSystemService(Context.POWER_SERVICE);
+            return pm != null && pm.isIgnoringBatteryOptimizations(
+                    activity.getPackageName());
+        } catch (Exception e) {
+            Log.e(TAG, "isIgnoringBatteryOptimizations failed", e);
+            return false;
+        }
     }
 
     /** Drop the launch splash once the UI has painted (see MainActivity). */

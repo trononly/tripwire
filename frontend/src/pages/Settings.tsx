@@ -24,6 +24,11 @@ import {
   drainPendingSms,
   hasPhoneStatePermission,
   isAndroidBridge,
+  isIgnoringBatteryOptimizations,
+  openAppSettings,
+  openBatterySettings,
+  openUssdAutomationSettings,
+  ussdAutomationEnabled,
   type SmsPermissions,
 } from "@/lib/sms-bridge";
 import { SODA_URL, openExternalUrl } from "@/lib/external-url";
@@ -164,6 +169,83 @@ function PrivacyRow() {
         label="Privacy mode"
       />
     </SettingRow>
+  );
+}
+
+/**
+ * Debug: fire each system-settings jump and show what the device reports.
+ * Both settings can only change while the app is in the background, so the
+ * rows re-read on return.
+ */
+function SettingsJumps() {
+  const [batteryExempt, setBatteryExempt] = useState(
+    isIgnoringBatteryOptimizations,
+  );
+  const [accessibilityOn, setAccessibilityOn] = useState(
+    ussdAutomationEnabled,
+  );
+
+  useEffect(() => {
+    const recheck = () => {
+      setBatteryExempt(isIgnoringBatteryOptimizations());
+      setAccessibilityOn(ussdAutomationEnabled());
+    };
+    window.addEventListener("focus", recheck);
+    document.addEventListener("visibilitychange", recheck);
+    return () => {
+      window.removeEventListener("focus", recheck);
+      document.removeEventListener("visibilitychange", recheck);
+    };
+  }, []);
+
+  const rows: {
+    label: string;
+    state?: string;
+    opened: string;
+    open: () => void;
+  }[] = [
+    {
+      label: "Battery exemption",
+      state: batteryExempt ? "exempt" : "not exempt",
+      opened: "Battery settings opened",
+      open: openBatterySettings,
+    },
+    {
+      label: "Accessibility service",
+      state: accessibilityOn ? "enabled" : "off",
+      opened: "Accessibility settings opened",
+      open: openUssdAutomationSettings,
+    },
+    {
+      label: "App info",
+      opened: "App info opened",
+      open: openAppSettings,
+    },
+  ];
+
+  return (
+    <div className="divide-y divide-border">
+      {rows.map(({ label, state, opened, open }) => (
+        <SettingRow key={label} label={label}>
+          {state && (
+            <span className="font-mono text-xs text-muted-foreground">
+              {state}
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label={`Test ${label}`}
+            onClick={() => {
+              open();
+              toast.success(opened);
+            }}
+          >
+            Test
+          </Button>
+        </SettingRow>
+      ))}
+    </div>
   );
 }
 
@@ -440,6 +522,14 @@ export default function Settings({
                 </Button>
               </SettingRow>
             </div>
+            {isAndroid && (
+              <div className="mt-4 border-t border-border">
+                <p className="pt-3 text-[12px] font-medium text-muted-foreground">
+                  Settings jumps
+                </p>
+                <SettingsJumps />
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
