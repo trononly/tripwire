@@ -26,7 +26,9 @@ import {
   AutomationStatusLine,
 } from "@/components/automation-gate";
 import { useAutomationAvailable } from "@/hooks/use-automation-available";
+import { PlanActionSheet } from "@/components/plan-action-sheet";
 import { RecurringPlanSheet } from "@/components/recurring-plan-sheet";
+import { useLongPress } from "@/hooks/use-long-press";
 import { useQuickEntry } from "@/hooks/use-quick-entry";
 import {
   dayKey,
@@ -139,6 +141,9 @@ export function RecurringPayments({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<RecurringPlan | null>(null);
   const [prefill, setPrefill] = useState<PlanDraft | null>(null);
+  // The plan a long-press menu is open for.
+  const [actionPlan, setActionPlan] = useState<RecurringPlan | null>(null);
+  const [actionOpen, setActionOpen] = useState(false);
   const [paying, setPaying] = useState<RecurringPlan | null>(null);
   const [payAmount, setPayAmount] = useState("");
   const [payError, setPayError] = useState<string | null>(null);
@@ -320,12 +325,26 @@ export function RecurringPayments({
                   onEdit={() => openEdit(row.plan)}
                   onSkip={() => void skipCycle(row.plan)}
                   onUnskip={() => void onSkipPlan(row.plan.id, "")}
+                  onActions={() => {
+                    setActionPlan(row.plan);
+                    setActionOpen(true);
+                  }}
                 />
               </li>
             ))}
           </ul>
         )}
       </CardContent>
+
+      <PlanActionSheet
+        plan={actionPlan}
+        open={actionOpen}
+        onOpenChange={setActionOpen}
+        onEdit={() => {
+          if (actionPlan) openEdit(actionPlan);
+        }}
+        onDelete={onDeletePlan}
+      />
 
       <RecurringPlanSheet
         open={sheetOpen}
@@ -389,6 +408,7 @@ function PlanRow({
   onEdit,
   onSkip,
   onUnskip,
+  onActions,
 }: {
   plan: RecurringPlan;
   lastPaid: LastPaid | null;
@@ -399,14 +419,19 @@ function PlanRow({
   onEdit: () => void;
   onSkip: () => void;
   onUnskip: () => void;
+  onActions: () => void;
 }) {
   const Icon = planIcon(plan.kind);
   const cadence = cadenceStyle(plan.cadence);
   const amount = plan.amount > 0 ? plan.amount : lastPaid?.amount ?? null;
   const skipped = Boolean(plan.skippedFor);
+  const longPress = useLongPress(onActions);
 
   return (
-    <div className="flex items-start gap-3 py-4">
+    <div
+      {...longPress}
+      className="flex select-none items-start gap-3 py-4"
+    >
       <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-muted text-muted-foreground">
         <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
       </span>

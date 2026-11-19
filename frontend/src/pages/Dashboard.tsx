@@ -43,7 +43,11 @@ import { useInView } from "@/hooks/use-in-view";
 import { cn } from "@/lib/utils";
 import { formatBucketLabel, formatDay, formatMoney } from "@/lib/format";
 import { addDays, flowWindow, windowSlices } from "@/lib/home-window";
-import { dueLabel, nextDue, toPlanLike } from "@/lib/recurring-plans";
+import { dueLabel, nextDue, toPlanLike, type PlanDraft } from "@/lib/recurring-plans";
+import { RecurringPlanSheet } from "@/components/recurring-plan-sheet";
+import { PlanActionSheet } from "@/components/plan-action-sheet";
+import { useLongPress } from "@/hooks/use-long-press";
+import type { RecurringPlan } from "../../bindings/mpesa-analyzer/internal/store/models";
 import {
   useTransactionGroups,
   type TransactionView,
@@ -232,6 +236,46 @@ const cadenceLabels: Record<string, string> = {
   quarterly: "Quarterly",
 };
 
+/**
+ * One plan on the Coming up card. A plain tap opens the long-press menu too:
+ * the card has no other controls, so this is the mouse and keyboard path to
+ * the same options a hold opens on touch.
+ */
+function ComingUpRow({
+  plan,
+  due,
+  onActions,
+}: {
+  plan: RecurringPlan;
+  due: Date;
+  onActions: () => void;
+}) {
+  const longPress = useLongPress(onActions);
+  return (
+    <button
+      type="button"
+      onClick={onActions}
+      {...longPress}
+      className="flex w-full select-none items-center gap-3 py-2.5 text-left first:pt-0 last:pb-0"
+    >
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[14px] font-medium" title={plan.name}>
+          {plan.name}
+        </p>
+        <p className="text-[12px] text-muted-foreground">
+          {cadenceLabels[plan.cadence] ?? plan.cadence}
+        </p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-[12px] text-muted-foreground">{dueLabel(due)}</p>
+        {plan.amount > 0 && (
+          <p className="num text-[14px] font-medium">{amount(plan.amount)}</p>
+        )}
+      </div>
+    </button>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // The five cards, one analyzed dataset
 // ---------------------------------------------------------------------------
@@ -247,9 +291,18 @@ function HomeCards({
 }) {
   const navigate = useNavigate();
   const [donutMode, setDonutMode] = useDonutMode();
-  const { plans } = useRecurringPlans();
+  // The same plans hook the recurring payments list uses, so a plan deleted
+  // or edited from here goes through the same service calls and toasts.
+  const { plans, add, update, remove } = useRecurringPlans();
   const groups = useTransactionGroups(transactions);
   const flow = flowWindow(result, transactions);
+
+  const [actionPlan, setActionPlan] = useState<RecurringPlan | null>(null);
+  const [actionOpen, setActionOpen] = useState(false);
+  // The plan the edit sheet is open for; reached through the menu's
+  // "Edit plan", which opens the same sheet the list uses.
+  const [sheetPlan, setSheetPlan] = useState<RecurringPlan | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   // Every figure on this page describes the same window: the flow line, the
   // weekly bars and the donut all speak for the last 30 days of the dataset,
@@ -451,35 +504,43 @@ function HomeCards({
             <CardContent>
               <div className="divide-y divide-border/70">
                 {upcoming.map(({ plan, due }) => (
-                  <div
+                  <ComingUpRow
                     key={plan.id}
-                    className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[14px] font-medium" title={plan.name}>
-                        {plan.name}
-                      </p>
-                      <p className="text-[12px] text-muted-foreground">
-                        {cadenceLabels[plan.cadence] ?? plan.cadence}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-[12px] text-muted-foreground">
-                        {dueLabel(due)}
-                      </p>
-                      {plan.amount > 0 && (
-                        <p className="num text-[14px] font-medium">
-                          {amount(plan.amount)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                    plan={plan}
+                    due={due}
+                    onActions={() => {
+                      setActionPlan(plan);
+                      setActionOpen(true);
+                    }}
+                  />
                 ))}
               </div>
             </CardContent>
           </Card>
         </Private>
       )}
+
+      <PlanActionSheet
+        plan={actionPlan}
+        open={actionOpen}
+        onOpenChange={setActionOpen}
+        onEdit={() => {
+          if (actionPlan) {
+            setSheetPlan(actionPlan);
+            setSheetOpen(true);
+          }
+        }}
+        onDelete={remove}
+      />
+      <RecurringPlanSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        plan={sheetPlan}
+        plans={plans}
+        onSave={(draft, id) => (id ? update(id, draft) : add(draft))}
+        onDelete={remove}
+        onEditPlan={setSheetPlan}
+      />
 
     </>
   );
