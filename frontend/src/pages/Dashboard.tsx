@@ -339,8 +339,6 @@ function HomeCards({
                 <span className="font-medium text-money-out">
                   Out {whole(flow.outCents)}
                 </span>
-                {" · "}
-                <span>fees {whole(flow.feeCents)}</span>
               </p>
             </CardContent>
           </Card>
