@@ -22,7 +22,6 @@ import { cn } from "@/lib/utils";
 import { filterGroups, filterByCustomCategory } from "@/lib/transaction-filter";
 import { vibrateIfEnabled } from "@/lib/motion-settings";
 import { typeStyle } from "@/lib/transaction-types";
-import { PageHeader } from "@/components/page-header";
 import { useCategories } from "@/hooks/use-categories";
 import type * as parser from "../../bindings/mpesa-analyzer/internal/parser/models";
 
@@ -661,7 +660,6 @@ export default function Transactions({
   }, []);
   return (
     <div className="space-y-6">
-      <PageHeader title="Transactions" />
       {transactions.length > 0 ? (
         <TxDataTable txs={transactions} />
       ) : (

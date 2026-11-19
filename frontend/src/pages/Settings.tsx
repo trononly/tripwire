@@ -18,7 +18,7 @@ import {
 } from "@/lib/payment-settings";
 import { cn } from "@/lib/utils";
 import { simName } from "@/components/sim-switcher";
-import { useKonamiCode } from "@/hooks/use-konami-code";
+import { useDevMode } from "@/hooks/use-konami-code";
 import {
   drainPendingSms,
   hasPhoneStatePermission,
@@ -30,7 +30,6 @@ import type * as store from "../../bindings/mpesa-analyzer/internal/store/models
 import type { Updater } from "@/hooks/use-updater";
 import { ChangelogButton } from "@/components/changelog-dialog";
 import { BackupSetting } from "@/components/backup-setting";
-import { PageHeader } from "@/components/page-header";
 import { AutomationSettingsCard } from "@/components/automation-settings";
 import { ResetData } from "../../bindings/mpesa-analyzer/parseservice";
 import {
@@ -204,18 +203,8 @@ export default function Settings({
   onTestArrival: () => void;
   updater: Updater;
 }) {
-  const debug = useKonamiCode();
+  const debug = useDevMode();
   const autoConfirm = useAutoConfirmEnabled();
-  const toastedRef = useRef(debug.unlocked);
-  useEffect(() => {
-    if (debug.unlocked && !toastedRef.current) {
-      toastedRef.current = true;
-      toast.success("Debug unlocked");
-    } else if (!debug.unlocked && toastedRef.current) {
-      toastedRef.current = false;
-      toast("Debug hidden");
-    }
-  }, [debug.unlocked]);
   const smsRecords = statements.filter((s) => s.source === "sms");
   const statementRecords = statements.filter((s) => s.source !== "sms");
   // Opening Settings re-resolves carrier names for wallets imported
@@ -251,9 +240,6 @@ export default function Settings({
   }`;
   return (
     <div className="space-y-6">
-      <div onClick={debug.tap} className="select-none" aria-hidden="true" />
-      <PageHeader title="Settings" />
-
       <Card>
         <CardContent className="divide-y divide-border">
           <SettingRow label="Appearance">
@@ -273,16 +259,18 @@ export default function Settings({
             >
               <ModeSegment mode={mode} onModeChange={onModeChange} />
             </SettingRow>
-            <SettingRow label="SMS import details">
-              <Link
-                to="/sms"
-                className="flex items-center gap-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
-                aria-label="Open SMS import details"
-              >
-                Details
-                <ArrowRight className="size-3.5" aria-hidden />
-              </Link>
-            </SettingRow>
+            {debug.unlocked && (
+              <SettingRow label="SMS import details">
+                <Link
+                  to="/sms"
+                  className="flex items-center gap-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label="Open SMS import details"
+                >
+                  Details
+                  <ArrowRight className="size-3.5" aria-hidden />
+                </Link>
+              </SettingRow>
+            )}
             <SettingRow label="Auto-confirm after PIN">
               <Switch
                 checked={autoConfirm}
