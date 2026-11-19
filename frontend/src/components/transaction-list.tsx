@@ -192,7 +192,7 @@ function TxRow({
             never for an ordinary amount. */}
         <span
           className={`whitespace-nowrap text-[15px] font-medium tabular-nums ${
-            moneyIn ? "text-money-in" : "text-foreground"
+            moneyIn ? "text-money-in" : "text-money-out"
           }`}
         >
           {formatAmount(tx.amount)}
@@ -252,7 +252,7 @@ function ReceiptSheet({
               <Private label="Tap to reveal the amount">
                 <span
                   className={`text-[28px] font-semibold tabular-nums ${
-                    tx.amount >= 0 ? "text-money-in" : "text-foreground"
+                    tx.amount >= 0 ? "text-money-in" : "text-money-out"
                   }`}
                 >
                   {formatAmount(tx.amount)}

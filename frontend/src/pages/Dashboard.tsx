@@ -337,7 +337,7 @@ function HomeCards({
                   +{amount(flow.inCents)} in
                 </span>
                 {" · "}
-                <span className="font-medium text-foreground">
+                <span className="font-medium text-money-out">
                   -{amount(flow.outCents)} out
                 </span>
                 <span> last 30 days, fees {amount(flow.feeCents)}</span>
