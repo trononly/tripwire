@@ -17,13 +17,6 @@ const MONTH_CELLS = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ] as const;
 
-/**
- * The Insights month picker: one button at the top of the page opens a
- * bottom sheet with the months of the data as a grid, grouped by year.
- * Months without data, and anything past the newest data month, are dead
- * cells; "Show everything" is the way back to the whole dataset. The
- * picker lives here only: Insights is where month scope means something.
- */
 export function MonthPickerSheet({
   months,
   selected,
@@ -36,7 +29,6 @@ export function MonthPickerSheet({
   const [open, setOpen] = useState(false);
   const [year, setYear] = useState<string | null>(null);
 
-  // Every open lands on the selected month's year, or the newest one.
   useEffect(() => {
     if (!open) return;
     setYear(

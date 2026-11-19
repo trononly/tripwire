@@ -10,11 +10,6 @@ export interface AmountFieldProps {
 	error?: string;
 }
 
-/**
- * The page's visual lead: a 40px grouped amount with the currency quiet in
- * front and the cents muted behind. Guided payments are whole shillings,
- * so the ".00" is fixed, not typed.
- */
 export function AmountField({
 	id,
 	value,

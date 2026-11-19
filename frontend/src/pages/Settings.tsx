@@ -49,20 +49,12 @@ import { Button } from "@/components/ui/button";
 import { OptionButton } from "@/components/ui/option-button";
 import { Switch } from "@/components/ui/switch";
 
-/**
- * Settings as one quiet list: grouped rows in two cards, then the cards
- * that own their own state (automation, backup, wallets), reset, and a
- * footnote. Every control keeps its behaviour; only the grouping and the
- * styling changed.
- */
-
 const themes = [
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
   { value: "system", label: "System" },
 ] as const;
 
-/** One row of the quiet list: label and subtext left, control right. */
 function SettingRow({
   label,
   sub,

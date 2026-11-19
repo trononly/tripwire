@@ -110,11 +110,6 @@ export interface RecurringPaymentsProps {
   onSkipPlan: (id: string, due: string) => Promise<boolean>;
 }
 
-/**
- * Recurring payments: the plans the user set up, with Play and reminders.
- * The card owns the user's payment plans only; detected bills live in the
- * analysis elsewhere and never surface here.
- */
 export function RecurringPayments({
   plans,
   lastPaid,
@@ -141,7 +136,6 @@ export function RecurringPayments({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<RecurringPlan | null>(null);
   const [prefill, setPrefill] = useState<PlanDraft | null>(null);
-  // The plan a long-press menu is open for.
   const [actionPlan, setActionPlan] = useState<RecurringPlan | null>(null);
   const [actionOpen, setActionOpen] = useState(false);
   const [paying, setPaying] = useState<RecurringPlan | null>(null);

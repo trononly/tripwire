@@ -6,14 +6,9 @@ import type {
 
 import { vibrateIfEnabled } from "@/lib/motion-settings";
 
-/** How long a finger must stay down before the press counts as a hold. */
 const HOLD_MS = 450;
-/** Finger travel that means "this is a scroll", which cancels the hold. */
 const CANCEL_PX = 12;
 
-/** A hold that starts on a control nested inside the row belongs to that
- * control, not to the row's long-press menu. The row itself may be the
- * control (the home card's rows are buttons); that still counts as the menu. */
 function startsOnNestedControl(target: EventTarget | null, row: EventTarget | null): boolean {
   const start = (target as HTMLElement | null)?.closest(
     "button, a, input, select, textarea",
@@ -54,7 +49,6 @@ export function useLongPress(onLongPress: () => void) {
       ) {
         return;
       }
-      // A second finger is a pinch or a stray touch, never a hold.
       if (event.touches.length !== 1) {
         cancel();
         return;
@@ -79,8 +73,6 @@ export function useLongPress(onLongPress: () => void) {
     },
     onTouchEnd(event: ReactTouchEvent) {
       cancel();
-      // The hold already opened the menu; the lift must not also click the
-      // row underneath it.
       if (fired.current) event.preventDefault();
       origin.current = null;
     },

@@ -18,11 +18,6 @@ export interface FavouritesRowProps {
 	max?: number;
 }
 
-/**
- * Quick-pick chips above the form. Tapping a chip only fills the fields -
- * sending stays an explicit second tap. The add chip sits at the end and
- * opens the management sheet.
- */
 export function FavouritesRow({
 	items,
 	onManage,

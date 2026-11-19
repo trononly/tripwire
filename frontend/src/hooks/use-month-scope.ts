@@ -5,7 +5,6 @@ import type * as parser from "../../bindings/mpesa-analyzer/internal/parser/mode
 import { AnalyzeTransactions } from "../../bindings/mpesa-analyzer/parseservice";
 import { monthShort } from "@/lib/insight-finding";
 
-/** The dataset-wide view: the same result the page already holds. */
 export const ALL_MONTHS = "all";
 
 export interface MonthOption {
@@ -40,8 +39,6 @@ export function useMonthScope({
   const [scopedLoading, setScopedLoading] = useState(false);
   const [scopedError, setScopedError] = useState<string | null>(null);
 
-  // Newest first, capped to the newest twelve so the chip row stays one
-  // scroll and never shows the same month name twice.
   const months = useMemo<MonthOption[]>(() => {
     const buckets = result?.cashflowMonthly ?? [];
     return buckets
@@ -63,8 +60,6 @@ export function useMonthScope({
     }
     const subset = transactions.filter((t) => t.date.slice(0, 7) === selected);
     if (subset.length === 0) {
-      // The dataset changed under the selection and the month is gone;
-      // fall back to the whole dataset rather than a skeleton forever.
       setSelected(ALL_MONTHS);
       return;
     }
@@ -86,8 +81,6 @@ export function useMonthScope({
     };
   }, [selected, transactions]);
 
-  // Dropping the stale month's result up front keeps a fast A-to-B switch
-  // on the skeleton instead of flashing A's figures under B.
   const select = (key: string) => {
     if (key === selected) return;
     setScoped(null);

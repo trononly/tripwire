@@ -21,8 +21,6 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 
-// Bottom nav destinations. Pay is not a route: the center button opens
-// the Pay bottom sheet. The other four are real tabs.
 const items = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight, end: false },
@@ -31,8 +29,6 @@ const items = [
   { to: "/settings", label: "Settings", icon: SettingsIcon, end: false },
 ] as const;
 
-// Pay menu destinations: one row each with a route, a name and a
-// one-line description. The sheet renders straight from this registry.
 const actions = [
   {
     to: "/send",
@@ -64,13 +60,8 @@ export function MobileNav() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
-  // Android build-number ritual: ten taps on the Settings tab unlock
-  // developer tools. One extra tap per navigation is invisible to normal
-  // use; the counter expires after three seconds.
   const dev = useDevMode();
 
-  // Close the sheet on any route change: system back, a destination tap,
-  // or a navbar tap while the Pay menu is open.
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
@@ -109,9 +100,6 @@ export function MobileNav() {
         </DrawerContent>
       </Drawer>
 
-      {/* Solid background, not translucent: the safe-area padding below the
-          last row must paint the same colour as the bar itself, otherwise the
-          gesture handle sits on a lighter strip. */}
       <nav
         className="fixed inset-x-0 bottom-0 z-[70] border-t bg-background lg:hidden"
         style={{ paddingBottom: "var(--safe-bottom,env(safe-area-inset-bottom))" }}

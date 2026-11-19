@@ -102,15 +102,12 @@
     --brand-strong: #b9312d;
     --money-in: #0f766e;
     --money-out: #b23a36;
-    /* "Where it went" rank ramp: --donut-1 is the largest share. */
     --donut-1: var(--brand-strong);
     --donut-2: #3d3d3b;
     --donut-3: #8f8b84;
     --donut-4: #c5c1b8;
     --donut-5: #dedbd3;
     --pay-action: #0f766e;
-    /* The Pay control is the one inverted surface: near-black in light
-       mode, white in dark. Coral never touches it. */
     --pay-bg: #18181b;
     --pay-ink: #ffffff;
 }
@@ -131,9 +128,6 @@
     --accent: #1d1d21;
     --accent-foreground: #f4f4f2;
     --destructive: #f08a86;
-    /* Dark separates surfaces by lightness alone, never by lines: border
-       and input sit one step above the card (#151518) so every
-       `border-border` reads as a tone step, not a hairline. */
     --border: #232326;
     --input: #232326;
     --ring: #c73e38;
@@ -213,10 +207,6 @@ html,
 }
 
 @layer components {
-    /* Toggle tile: the single active-state language app-wide. Inactive is
-       a quiet bordered tile at 10px; active is a subtle coral tint -
-       clear without blinding. Green stays reserved for data status
-       (inflow amounts, surplus badges), never controls. */
     .tile {
         @apply min-h-9 min-w-0 shrink-0 rounded-[10px] border border-border px-3 py-1.5 text-[13px] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground;
     }

@@ -188,8 +188,6 @@ function TxRow({
           </span>
         </span>
 
-        {/* Out in ink, in with a plus in green: red stays for data status,
-            never for an ordinary amount. */}
         <span
           className={`whitespace-nowrap text-[15px] font-medium tabular-nums ${
             moneyIn ? "text-money-in" : "text-money-out"
@@ -227,11 +225,6 @@ function DetailRow({
   );
 }
 
-/**
- * Receipt sheet: what one tap on a row opens. The amount is the hero with the
- * counterparty under it, the keyed fields follow, and the reference sits at
- * the foot where a receipt puts it.
- */
 function ReceiptSheet({
   tx,
   onClose,
@@ -263,9 +256,6 @@ function ReceiptSheet({
               </span>
             </div>
             <div className="divide-y divide-border border-y border-border text-[13px]">
-              {/* The parsed statement carries no wallet/SIM field, so the
-                  type label holds that slot: it names which M-Pesa movement
-                  this was (Buy Goods, Fuliza, Received ...). */}
               <DetailRow
                 label="When"
                 value={`${formatFullDate(tx.date)}, ${tx.date.slice(11, 16)}`}
@@ -359,7 +349,6 @@ export function TransactionList({
   showPagination = true,
   onSetCategory,
 }: TransactionListProps) {
-  // The one selection: the transaction whose receipt is open, or none.
   const [selected, setSelected] = useState<TransactionView | null>(null);
   // Infinite scroll: rows render in batches; the sentinel below loads more.
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);

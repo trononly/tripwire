@@ -98,9 +98,7 @@ export function AppHeader(props: AppHeaderProps) {
 						/>
 					)}
 					{/* SMS mode owns its own import action on the SMS screen.
-					    This icon is the way back to that screen from anywhere.
-					    Developer tools only: raw parse details are not for the
-					    home screen; the Settings tab unlocks them. */}
+					    This icon is the way back to that screen from anywhere. */}
 					{isAndroid && dev.unlocked && (
 						<Button
 							size="icon-sm"

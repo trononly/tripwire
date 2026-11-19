@@ -129,8 +129,6 @@ vi.mock("@wailsio/runtime", async (importOriginal) => ({
 	Browser: { OpenURL: vi.fn() },
 }));
 
-// Shared localStorage stub for the lib tests below.
-
 const store = new Map<string, string>();
 vi.stubGlobal("localStorage", {
 	getItem: (k: string) => store.get(k) ?? null,
@@ -161,8 +159,6 @@ describe("external-url", () => {
 		expect(Browser.OpenURL).toHaveBeenCalledWith(SODA_URL);
 	});
 });
-
-// --- insight finding ---
 
 const centsTotals = (over: Partial<analysis.Totals> = {}): analysis.Totals => ({
 	totalIn: 9_000_000,
@@ -198,7 +194,6 @@ const monthlyBucket = (ym: string, out: number): analysis.CashflowBucket => ({
 	out,
 });
 
-// Nov 19 2026: the newest month in the sample data is still running.
 const NOV_19 = new Date(2026, 10, 19);
 
 describe("insight finding", () => {
@@ -1285,12 +1280,10 @@ describe("TransactionList", () => {
 		render(<TransactionList groups={groups} showPagination={false} />);
 		fireEvent.click(screen.getByRole("button", { name: /FAITH NJOKI BACHIA/ }));
 		const receipt = screen.getByRole("dialog");
-		// The amount is the hero, the counterparty under it.
 		expect(
 			within(receipt).getAllByText("-KES 2,450.00").length,
 		).toBeGreaterThan(0);
 		expect(within(receipt).getByText("FAITH NJOKI BACHIA")).toBeInTheDocument();
-		// Every field the old expanded grid showed survives in the sheet.
 		expect(within(receipt).getByText("28 Apr 2026, 14:22")).toBeInTheDocument();
 		expect(within(receipt).getByText("Buy Goods")).toBeInTheDocument();
 		expect(
@@ -1309,15 +1302,12 @@ describe("TransactionList", () => {
 
 	it("never expands a row in place: details live only in the receipt sheet", () => {
 		render(<TransactionList groups={groups} showPagination={false} />);
-		// Row buttons carry no expand affordance at all.
 		for (const rowButton of screen.getAllByRole("button", {
 			name: /· 14:22/,
 		})) {
 			expect(rowButton).not.toHaveAttribute("aria-expanded");
 		}
 		fireEvent.click(screen.getByRole("button", { name: /JOHN DOE/ }));
-		// The raw description renders exactly once, inside the sheet, so no
-		// inline detail panel appeared under the tapped row.
 		expect(
 			screen.getAllByText("Customer Transfer to - JOHN DOE"),
 		).toHaveLength(1);

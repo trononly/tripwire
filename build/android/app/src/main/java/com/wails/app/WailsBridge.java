@@ -1621,14 +1621,6 @@ public class WailsBridge {
         }
     }
 
-    /**
-     * Ask Android to exempt Tripwire from battery optimization. The first
-     * stop is the app's own App info page, where this build's name is in
-     * the URI, so the user always lands on Tripwire and reaches Battery
-     * from there. OEMs without that page get the system Yes/No dialog
-     * naming the app, then the system-wide list. The app never grants the
-     * exemption itself; every stop is the user's decision.
-     */
     public void openBatterySettings() {
         mainHandler.post(() -> {
             try {

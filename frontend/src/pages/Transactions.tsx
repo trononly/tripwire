@@ -272,9 +272,6 @@ function TxDataTable({ txs }: { txs: parser.Transaction[] }) {
     [previewGroups],
   );
 
-  // A filtered ledger must announce itself: the dashboard donut deep links
-  // in with ?category=, and a list of only one category reads as broken
-  // data unless the active filters are visible and one tap to clear.
   const activeFilterChips = useMemo(() => {
     const chips: { key: string; label: string; onClear: () => void }[] = [];
     const clearParam = (name: string) =>

@@ -32,11 +32,6 @@ export function AutomationOffPanel() {
 	);
 }
 
-/**
- * The switch is on but Android has not bound the service. This is the state
- * that can be caused by a stale binding, an OEM process limit, or another
- * tool controlling the screen. The copy does not claim a cause.
- */
 export function AutomationDisconnectedPanel({
 	onRetry,
 	compact = false,
@@ -96,11 +91,6 @@ export function AutomationDisconnectedPanel({
 	);
 }
 
-/**
- * One quiet line under a pay action: the honest state of the automation
- * service with its recovery affordance inline. The amber panels stay for
- * a genuinely interrupted payment; this line is for every other state.
- */
 export function AutomationStatusLine({
 	available,
 	running,
@@ -160,10 +150,6 @@ export function AutomationStatusLine({
 	);
 }
 
-/**
- * Shown after a guided run was cut short. It never claims the payment failed;
- * the user is asked to verify before trying again.
- */
 export function AutomationInterruptedNotice({
 	code,
 	onDismiss,

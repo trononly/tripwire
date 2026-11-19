@@ -53,13 +53,6 @@ import {
   type TransactionView,
 } from "@/components/transaction-list";
 
-/**
- * Home - "how am I doing?" in five cards: the balance and its recent flow,
- * the heaviest week, where money went, what is coming up, and what just
- * happened. Payment controls live behind the Pay button, not here.
- */
-
-/** Signed shillings, "-1,200.00". The currency prefix is the hero's job. */
 function amount(cents: number): string {
   return (Math.abs(cents) / 100).toLocaleString("en-KE", {
     minimumFractionDigits: 2,
@@ -67,30 +60,20 @@ function amount(cents: number): string {
   });
 }
 
-/** Whole shillings for the quiet flow line: "122,734". Cents are ledger
- * detail, not glance detail. */
 function whole(cents: number): string {
   return new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(
     Math.abs(cents) / 100,
   );
 }
 
-/** "KES 62,978.00" -> ["KES 62,978", "00"]; the cents render smaller. */
 function balanceParts(cents: number): [string, string | null] {
   const [whole, frac] = formatMoney(cents).split(".");
   return frac ? [whole, frac] : [whole, null];
 }
 
-// ---------------------------------------------------------------------------
-// Money out by week
-// ---------------------------------------------------------------------------
-
 type WeekOut = {
-  /** Display label for the week's Monday, "3 Nov". */
   label: string;
-  /** Money out for the week, shillings. */
   out: number;
-  /** The recurring payment that caused the heaviest week, or null. */
   cause: string | null;
 };
 
@@ -138,8 +121,6 @@ function WeekOutChart({ weeks }: { weeks: WeekOut[] }) {
             tickMargin={6}
             tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
           />
-          {/* The y axis stays implicit: three ticks drive three faint
-              gridlines, no numbers, the bar heights carry the scale. */}
           <YAxis hide domain={[0, "dataMax"]} tickCount={3} />
           <ChartTooltip
             cursor={{ fill: "var(--muted)", opacity: 0.4 }}
@@ -162,8 +143,6 @@ function WeekOutChart({ weeks }: { weeks: WeekOut[] }) {
             animationDuration={700}
             animationEasing="ease-out"
           >
-            {/* The heaviest week names its cause once, always visible:
-                touch has no hover to hide a label behind. */}
             <LabelList
               dataKey="out"
               content={(props: { viewBox?: unknown; index?: number }) => {
@@ -198,10 +177,6 @@ function WeekOutChart({ weeks }: { weeks: WeekOut[] }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Where it went: top slices plus one rest bucket
-// ---------------------------------------------------------------------------
-
 const TOP_SLICES = 3;
 const REST_KEY = "everything-else";
 
@@ -222,10 +197,6 @@ function topSlicesWithRest(slices: SpendSlice[]): SpendSlice[] {
     },
   ];
 }
-
-// ---------------------------------------------------------------------------
-// Coming up
-// ---------------------------------------------------------------------------
 
 const UPCOMING_SHOWN = 4;
 
@@ -276,10 +247,6 @@ function ComingUpRow({
   );
 }
 
-// ---------------------------------------------------------------------------
-// The five cards, one analyzed dataset
-// ---------------------------------------------------------------------------
-
 function HomeCards({
   result,
   transactions,
@@ -291,22 +258,15 @@ function HomeCards({
 }) {
   const navigate = useNavigate();
   const [donutMode, setDonutMode] = useDonutMode();
-  // The same plans hook the recurring payments list uses, so a plan deleted
-  // or edited from here goes through the same service calls and toasts.
   const { plans, add, update, remove } = useRecurringPlans();
   const groups = useTransactionGroups(transactions);
   const flow = flowWindow(result, transactions);
 
   const [actionPlan, setActionPlan] = useState<RecurringPlan | null>(null);
   const [actionOpen, setActionOpen] = useState(false);
-  // The plan the edit sheet is open for; reached through the menu's
-  // "Edit plan", which opens the same sheet the list uses.
   const [sheetPlan, setSheetPlan] = useState<RecurringPlan | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Every figure on this page describes the same window: the flow line, the
-  // weekly bars and the donut all speak for the last 30 days of the dataset,
-  // so no card can quietly disagree with another.
   const windowed = useMemo(
     () => windowSlices(groups.flatMap((g) => g.txs), flow),
     [groups, flow],
@@ -322,8 +282,6 @@ function HomeCards({
     [donutMode, windowed],
   );
 
-  // Weeks are the dataset's own weekly buckets, newest five; the cause is
-  // the largest recurring payment whose last payment day falls in that week.
   const weeks: WeekOut[] = useMemo(() => {
     const list = (result.cashflowWeekly ?? []).slice(-WEEKS_SHOWN);
     const recurring = result.recurringPayments ?? [];
@@ -543,10 +501,6 @@ function HomeCards({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Page shell: states, then the cards
-// ---------------------------------------------------------------------------
-
 export default function Dashboard({
   transactions,
   result,
@@ -580,15 +534,11 @@ export default function Dashboard({
 }) {
   const latestDay = maxDayOf(transactions.map((t) => t.date));
 
-  // The result stays on screen through a re-analysis, so the cards are not
-  // torn down and re-animated when the dataset is refreshed.
   const lastGood = useRef<analysis.AnalysisResult | null>(null);
   if (result) lastGood.current = result;
   const visible = result ?? lastGood.current;
   const updating = visible !== null && loading;
 
-  // Transactions loaded but the first analysis has not landed: render the
-  // skeleton, never a page of zeroes that fills in a moment later.
   if (transactions.length > 0 && !result && !error) {
     return (
       <div className="space-y-3" aria-busy="true">

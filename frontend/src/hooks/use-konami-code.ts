@@ -11,9 +11,6 @@ function vibrate(pattern: number | number[]) {
   }
 }
 
-// One shared unlock state: the Settings gesture and any other surface
-// reading dev mode must agree, so the flag lives at module level and
-// subscribers re-render through useSyncExternalStore.
 const listeners = new Set<() => void>();
 let unlocked = (() => {
   try {

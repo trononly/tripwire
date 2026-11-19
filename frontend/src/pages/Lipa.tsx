@@ -60,12 +60,8 @@ export default function Lipa({ simKey }: { simKey?: string | null }) {
   const [favOpen, setFavOpen] = useState(false);
   const startedAt = useRef(0);
 
-  // The Pay menu can re-navigate to a ?tab= Lipa is already showing, so
-  // the sync keys on location.key, which changes on every navigation:
-  // the menu choice always wins over the mounted state.
   useEffect(() => {
     if (paramTab === "till" || paramTab === "paybill") setTab(paramTab);
-    // Manual tab switches never touch the location, so they are safe here.
   }, [location.key, location.search]);
 
   useEffect(() => {

@@ -44,8 +44,6 @@ export function CategoryBreakdown({
     .sort((a, b) => b.value - a.value);
   const total = rows.reduce((sum, row) => sum + row.value, 0);
 
-  // The rank ramp: the first five ranks map onto --donut-1..5; anything
-  // beyond cycles through the non-brand colors so extra rows never crash.
   const rampColor = (rank: number) =>
     `var(--donut-${rank < 5 ? rank + 1 : 2 + ((rank - 5) % 4)})`;
 

@@ -64,9 +64,6 @@ export default function Send({ simKey }: { simKey?: string | null }) {
   // hours later.
   const startedAt = useRef(0);
 
-  // The Pay menu can re-navigate to a ?tab= Send is already showing, so the
-  // sync keys on location.key, which changes on every navigation: the menu
-  // choice always wins over the mounted state.
   useEffect(() => {
     if (paramTab === "pochi" || paramTab === "send") setTab(paramTab);
   }, [location.key, location.search, paramTab]);
@@ -84,7 +81,6 @@ export default function Send({ simKey }: { simKey?: string | null }) {
   const auto = useAutomationAvailable();
   const qe = useQuickEntry();
   const fav = useFavourites(tab);
-  // A picked contact fills the number field; the star decides favourites.
   const contact = useContactPick((r) => {
     vibrateIfEnabled(8);
     setPhone(formatPhoneInput(r.phone ?? ""));
@@ -216,8 +212,6 @@ export default function Send({ simKey }: { simKey?: string | null }) {
             aria-invalid={touched && !phoneOk}
             className="h-11 rounded-xl pr-24 text-lg font-semibold tracking-wide tabular-nums"
           />
-          {/* The system contact picker fills the field and nothing else:
-              saving to favourites is the star's job. */}
           <button
             type="button"
             aria-label="Pick from contacts"

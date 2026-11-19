@@ -18,18 +18,11 @@ interface PlanActionSheetProps {
   plan: RecurringPlan | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Opens the plan's own edit sheet for this plan. */
   onEdit: () => void;
   /** The same delete the plan sheet uses, toast feedback included. */
   onDelete: (id: string) => Promise<boolean>;
 }
 
-/**
- * The long-press menu for one recurring plan row: edit it or delete it right
- * where the row is. Both plan surfaces (home's Coming up card and the
- * recurring payments list) share this one sheet; edit and delete stay the
- * plan sheet's own flows, so each thing still happens one way.
- */
 export function PlanActionSheet({
   plan,
   open,
@@ -40,8 +33,6 @@ export function PlanActionSheet({
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Every open starts clean: a stale "tap again" must never delete on the
-  // first press of a new menu.
   useEffect(() => {
     if (open) {
       setConfirming(false);
@@ -51,7 +42,6 @@ export function PlanActionSheet({
 
   async function handleDelete() {
     if (!plan || deleting) return;
-    // The plan sheet's two-tap confirm, restated as a row.
     if (!confirming) {
       setConfirming(true);
       return;
@@ -62,7 +52,6 @@ export function PlanActionSheet({
     if (ok) onOpenChange(false);
   }
 
-  // Rows match the Pay menu: icon tile, label plus quiet description.
   const rowClass =
     "flex min-h-11 w-full items-center gap-3 rounded-[10px] px-2 py-2 text-left transition-colors hover:bg-muted";
 
