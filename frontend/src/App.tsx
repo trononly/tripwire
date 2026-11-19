@@ -9,7 +9,7 @@ import { TransactionReceiptDialog } from "@/components/transaction-receipt-dialo
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { BackToPrimaryTabs, PageFallback } from "@/components/router-helpers";
 import { AppHeader } from "@/components/app-header";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -23,6 +23,9 @@ import { UpdateDialog } from "@/components/update-dialog";
 import { RestrictedSettingsGuide } from "@/components/restricted-settings-guide";
 import { MobileNav } from "@/components/mobile-nav";
 import { OnboardingTour } from "@/components/onboarding-tour";
+import { useOnboardingState, getDemoId, setDemoId, clearDemoId } from "@/lib/onboarding-state";
+import { SeedDemoStatement } from "../bindings/mpesa-analyzer/parseservice";
+import { demoTransactions } from "@/lib/demo-statement";
 import { useStatements } from "@/hooks/use-statements";
 import { useSmsEngine } from "@/hooks/use-sms-engine";
 import { useSimNames } from "@/hooks/use-sim-names";
@@ -50,6 +53,37 @@ function App() {
   const [mode, setModeState] = useState<DataMode>(loadInitialMode);
   useSafeAreaInsets();
   const stmts = useStatements();
+  const { done: onboardingDone } = useOnboardingState();
+
+  // First run with an empty store: seed the tour's demo statement so the
+  // walkthrough spotlights populated screens, and activate it for the
+  // session. A user with real data never sees demo anything.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (onboardingDone || !stmts.loaded || stmts.statements.length > 0) {
+      return;
+    }
+    if (seededRef.current) return;
+    seededRef.current = true;
+    SeedDemoStatement(demoTransactions())
+      .then((record) => {
+        if (!record) return;
+        setDemoId(record.id);
+        stmts.importRecord(record);
+      })
+      .catch((e) => console.error("Seeding demo data failed:", e));
+    // seededRef and the store guards make the churn of stmts harmless.
+  }, [onboardingDone, stmts.loaded, stmts.statements.length]);
+
+  // The tour's "Remove demo data": delete the seeded statement, fall back
+  // to the empty app, and never offer it again.
+  const removeDemoStatement = useCallback(async () => {
+    const id = getDemoId();
+    if (!id) return;
+    clearDemoId();
+    await stmts.removeRecord(id);
+  }, [stmts]);
+
   // Live grant state for READ_SMS / RECEIVE_SMS / CALL_PHONE. Refreshes on
   // foreground; every SMS path consults it before doing work.
   const { permissions: smsPerms, refresh: refreshSmsPerms } = useSmsPermissions();
@@ -287,7 +321,7 @@ function App() {
             <MobileNav />          </SidebarInset>
         </SidebarProvider>
 
-        <OnboardingTour />
+        <OnboardingTour onRemoveDemo={removeDemoStatement} />
 
         <ImportStatementDialog
           open={importOpen}

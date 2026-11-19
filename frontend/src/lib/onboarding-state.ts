@@ -54,3 +54,53 @@ export function useOnboardingState(): { done: boolean } {
   const value = useSyncExternalStore(subscribe, isDone);
   return { done: value };
 }
+
+// The demo statement the tour seeded, persisted so a kill mid-tour keeps
+// the removal option alive. Same namespace: Reset app drops it too.
+const DEMO_KEY = "mpesa-analyzer.onboarding.demo";
+
+function readDemoId(): string | null {
+  try {
+    return localStorage.getItem(DEMO_KEY);
+  } catch {
+    return null;
+  }
+}
+
+let demoId: string | null = readDemoId();
+const demoListeners = new Set<() => void>();
+
+function subscribeDemo(cb: () => void) {
+  demoListeners.add(cb);
+  return () => {
+    demoListeners.delete(cb);
+  };
+}
+
+export function getDemoId(): string | null {
+  return demoId;
+}
+
+export function setDemoId(id: string): void {
+  demoId = id;
+  try {
+    localStorage.setItem(DEMO_KEY, id);
+  } catch {
+    /* private mode: the id lives for this session only */
+  }
+  demoListeners.forEach((listener) => listener());
+}
+
+export function clearDemoId(): void {
+  demoId = null;
+  try {
+    localStorage.removeItem(DEMO_KEY);
+  } catch {
+    /* nothing was stored */
+  }
+  demoListeners.forEach((listener) => listener());
+}
+
+export function useDemoId(): string | null {
+  return useSyncExternalStore(subscribeDemo, getDemoId);
+}

@@ -469,7 +469,12 @@ function Mascot({ pose, className }: { pose: Pose; className?: string }) {
  * `restart()` from developer tools reopens it without a relaunch. Each step
  * lights up a real control on the real screen instead of describing it.
  */
-export function OnboardingTour() {
+export function OnboardingTour({
+  onRemoveDemo,
+}: {
+  /** Deletes the seeded demo statement; the tour calls it on finish. */
+  onRemoveDemo?: () => Promise<void> | void;
+} = {}) {
   const { done } = useOnboardingState();
   const reduceMotion = useReduceMotionEnabled();
   const navigate = useNavigate();
@@ -520,7 +525,8 @@ export function OnboardingTour() {
     setIndex(0);
     setRect(null);
     markDone();
-  }, []);
+    void onRemoveDemo?.();
+  }, [onRemoveDemo]);
 
   const advance = useCallback(() => {
     setRect(null);
