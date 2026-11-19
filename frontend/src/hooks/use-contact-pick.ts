@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Events } from "@wailsio/runtime";
 import { toast } from "sonner";
 
@@ -13,6 +13,12 @@ import { canPickContact, pickContact, type ContactPickResult } from "@/lib/sms-b
  */
 export function useContactPick(onPicked: (r: ContactPickResult) => void) {
 	const [picking, setPicking] = useState(false);
+	// The callback rides in a ref: registering the event listener again
+	// whenever the caller re-created it would drop the pending pick.
+	const onPickedRef = useRef(onPicked);
+	useEffect(() => {
+		onPickedRef.current = onPicked;
+	});
 
 	useEffect(() => {
 		if (!picking) return;
@@ -24,13 +30,10 @@ export function useContactPick(onPicked: (r: ContactPickResult) => void) {
 				toast.error(data.error || "Could not read that contact.");
 				return;
 			}
-			onPicked(data);
+			onPickedRef.current(data);
 		});
 		pickContact();
 		return off;
-		// onPicked is read at event time; re-registering on its identity
-		// would reopen nothing and only churn the listener.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [picking]);
 
 	const start = useCallback(() => {

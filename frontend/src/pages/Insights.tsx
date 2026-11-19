@@ -3,7 +3,6 @@ import { useMemo } from "react";
 import { FileUp, Lightbulb } from "lucide-react";
 import type * as analysis from "../../bindings/mpesa-analyzer/internal/analysis/models";
 import type * as parser from "../../bindings/mpesa-analyzer/internal/parser/models";
-import type * as store from "../../bindings/mpesa-analyzer/internal/store/models";
 
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,6 @@ import { usePlanReminders } from "@/hooks/use-plan-reminders";
 import { useRecurringPlans } from "@/hooks/use-recurring-plans";
 import { ALL_MONTHS, useMonthScope } from "@/hooks/use-month-scope";
 import { MonthPickerSheet } from "@/components/month-picker-sheet";
-import { vibrateIfEnabled } from "@/lib/motion-settings";
 import {
   lastPaidOf,
   toPlanLike,
@@ -31,14 +29,6 @@ import {
   type MonthOutCell,
 } from "@/lib/insight-finding";
 
-/**
- * Insights - the depth layer on top of the same analysis result the
- * Dashboard uses. The screen opens with the finding in words, then the
- * cards that back it up. Every figure reads from AnalysisResult; a card
- * with no underlying data yet shows an honest empty state, never invented
- * numbers.
- */
-
 function TileEmpty({ children }: { children: React.ReactNode }) {
   return (
     <CardContent className="pt-0">
@@ -49,9 +39,6 @@ function TileEmpty({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** The finding, in words: the biggest category's share of money out, then
- * the month-over-month delta. Colours follow the direction, grey when
- * there is nothing to compare. */
 function FindingCard({ finding }: { finding: InsightFinding }) {
   const { lead, delta } = finding;
   if (!lead && !delta) return null;
@@ -91,9 +78,6 @@ function FindingCard({ finding }: { finding: InsightFinding }) {
   );
 }
 
-/** Fee radar: what Safaricom took, straight from the Fees category and the
- * totals the analyzer already computes, split by fee kind so the Fuliza
- * access-fee part is visible on its own row. */
 function FeeRadarCard({ result }: { result: analysis.AnalysisResult }) {
   const totalFees = result.totals.totalFees;
   const byType = result.feesByType ?? [];
@@ -144,7 +128,6 @@ function FeeRadarCard({ result }: { result: analysis.AnalysisResult }) {
   );
 }
 
-/** Money out by month: the newest three buckets as plain cells. */
 function MonthOutCard({ cells }: { cells: MonthOutCell[] }) {
   if (cells.length === 0) return null;
   return (
@@ -198,10 +181,6 @@ export default function Insights({
 
   usePlanReminders(plans, lastPaid, plansLoading);
 
-  // Month scope: "all" keeps the dataset-wide result the page receives;
-  // a month reruns the same analysis on that month's transactions.
-  // Recurring plans stay on the full dataset: they are patterns, not a
-  // month.
   const scope = useMonthScope({ transactions, result, loading, error });
 
   const savePlan = async (draft: PlanDraft, id: string | null) => {
@@ -210,25 +189,18 @@ export default function Insights({
   };
   const navigate = useNavigate();
 
-  // Month mode keeps the month-over-month line alive: the finding reads
-  // the previous and selected buckets from the full dataset while every
-  // other card reads the scoped result. "All" passes through untouched.
   const finding = useMemo(() => {
     if (scope.selected === ALL_MONTHS || !scope.result) {
       return insightFinding(scope.result);
     }
+    // The lead reads the scoped single month; the delta reads the previous
+    // and selected buckets from the full dataset.
     const buckets = (result?.cashflowMonthly ?? [])
       .filter((b) => b.start.slice(0, 7) <= scope.selected)
       .slice(-2);
-    return insightFinding({
-      ...scope.result,
-      cashflowMonthly: buckets,
-    } as analysis.AnalysisResult);
+    return insightFinding(scope.result, new Date(), buckets);
   }, [scope, result]);
 
-  // Who you paid most: the counterparties behind the month's money out,
-  // or the whole history in the "All" view. A tap opens the ledger
-  // pre-searched for that name.
   const groups = useTransactionGroups(transactions);
   const scopedTxs = useMemo(
     () =>
@@ -246,8 +218,6 @@ export default function Insights({
   }, [scope.selected, scope.months]);
   const partiesLabel = selectedLabel ? `in ${selectedLabel}` : "across your whole history";
   const topParties = useMemo(() => {
-    // Money in only: who paid you most. Money out already has its own
-    // answer on this page, the donut's categories.
     const map = new Map<
       string,
       { name: string; total: number; count: number }

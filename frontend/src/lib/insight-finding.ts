@@ -1,12 +1,5 @@
 import type * as analysis from "../../bindings/mpesa-analyzer/internal/analysis/models";
 
-/**
- * The Insights opening finding, computed from the analysis result the page
- * already holds. Pure functions: no React, no fetching, no invented
- * numbers - every figure traces back to AnalysisResult (and `now`, passed
- * in so "so far" stays testable).
- */
-
 export interface InsightLead {
   /** Category name as the analysis reports it, e.g. "Rent". */
   category: string;
@@ -69,8 +62,6 @@ function isCurrentMonth(start: string, now: Date): boolean {
   return ym === `${y}-${m}`;
 }
 
-/** Grouped whole-shilling figure without a currency code, for narrative
- * lines where the screen context already says money: "23,557.50". */
 function plainMoney(cents: number): string {
   return new Intl.NumberFormat("en-KE", {
     minimumFractionDigits: 2,
@@ -78,20 +69,16 @@ function plainMoney(cents: number): string {
   }).format(Math.abs(cents) / 100);
 }
 
-/** Grouped figure without decimals, for tight cells: "63,566". */
 function shortMoney(cents: number): string {
   return new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(
     Math.abs(cents) / 100,
   );
 }
 
-/** The lead finding: the biggest category's share of all money out. */
 function insightLead(result: analysis.AnalysisResult): InsightLead | null {
   const months = result.cashflowMonthly ?? [];
   const totalOut = result.totals.totalOut;
   if (totalOut <= 0) return null;
-  // Category amounts are signed cents, outflows negative; pick the
-  // largest spending category.
   const biggest = (result.categories ?? []).reduce<
     analysis.CategoryTotal | null
   >((best, c) => (c.amount < 0 && (best === null || c.amount < best.amount) ? c : best), null);
@@ -111,12 +98,11 @@ function insightLead(result: analysis.AnalysisResult): InsightLead | null {
   };
 }
 
-/** The month-over-month money-out delta from the monthly buckets. */
 function insightDelta(
-  result: analysis.AnalysisResult,
+  buckets: analysis.CashflowBucket[],
   now: Date,
 ): InsightDelta | null {
-  const months = result.cashflowMonthly ?? [];
+  const months = buckets;
   const prev = months[months.length - 2];
   const last = months[months.length - 1];
   if (!prev || !last) return null;
@@ -128,7 +114,6 @@ function insightDelta(
   if (diff === 0) return { kind: "flat", subject, against };
   return {
     kind: "changed",
-    // Less money out is the good direction.
     good: diff < 0,
     subject,
     amount: plainMoney(diff),
@@ -139,9 +124,10 @@ function insightDelta(
 export function insightFinding(
   result: analysis.AnalysisResult | null,
   now: Date = new Date(),
+  deltaBuckets: analysis.CashflowBucket[] = result?.cashflowMonthly ?? [],
 ): InsightFinding {
   if (!result) return { lead: null, delta: null };
-  return { lead: insightLead(result), delta: insightDelta(result, now) };
+  return { lead: insightLead(result), delta: insightDelta(deltaBuckets, now) };
 }
 
 export interface MonthOutCell {
