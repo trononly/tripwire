@@ -13,6 +13,8 @@ export interface MonthOption {
   key: string;
   /** "Nov". */
   label: string;
+  /** Money out for the month, signed cents (negative outflows). */
+  out: number;
 }
 
 /**
@@ -45,7 +47,11 @@ export function useMonthScope({
     return buckets
       .slice(-12)
       .reverse()
-      .map((b) => ({ key: b.start.slice(0, 7), label: monthShort(b.start) }));
+      .map((b) => ({
+        key: b.start.slice(0, 7),
+        label: monthShort(b.start),
+        out: b.out,
+      }));
   }, [result]);
 
   useEffect(() => {

@@ -1,17 +1,18 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMemo } from "react";
 import { FileUp, Lightbulb } from "lucide-react";
 import type * as analysis from "../../bindings/mpesa-analyzer/internal/analysis/models";
 import type * as parser from "../../bindings/mpesa-analyzer/internal/parser/models";
 import type * as store from "../../bindings/mpesa-analyzer/internal/store/models";
 
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RecurringPayments } from "@/components/recurring-payments";
 import { usePlanReminders } from "@/hooks/use-plan-reminders";
 import { useRecurringPlans } from "@/hooks/use-recurring-plans";
 import { ALL_MONTHS, useMonthScope } from "@/hooks/use-month-scope";
+import { MonthPickerSheet } from "@/components/month-picker-sheet";
 import { vibrateIfEnabled } from "@/lib/motion-settings";
 import {
   lastPaidOf,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/recurring-plans";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useTransactionGroups } from "@/components/transaction-list";
 import {
   feeRangeLabel,
   insightFinding,
@@ -206,8 +208,62 @@ export default function Insights({
     if (id) return update(id, draft);
     return add(draft);
   };
+  const navigate = useNavigate();
 
-  const finding = useMemo(() => insightFinding(scope.result), [scope.result]);
+  // Month mode keeps the month-over-month line alive: the finding reads
+  // the previous and selected buckets from the full dataset while every
+  // other card reads the scoped result. "All" passes through untouched.
+  const finding = useMemo(() => {
+    if (scope.selected === ALL_MONTHS || !scope.result) {
+      return insightFinding(scope.result);
+    }
+    const buckets = (result?.cashflowMonthly ?? [])
+      .filter((b) => b.start.slice(0, 7) <= scope.selected)
+      .slice(-2);
+    return insightFinding({
+      ...scope.result,
+      cashflowMonthly: buckets,
+    } as analysis.AnalysisResult);
+  }, [scope, result]);
+
+  // Who you paid most: the counterparties behind the month's money out,
+  // or the whole history in the "All" view. A tap opens the ledger
+  // pre-searched for that name.
+  const groups = useTransactionGroups(transactions);
+  const scopedTxs = useMemo(
+    () =>
+      scope.selected === ALL_MONTHS
+        ? groups.flatMap((g) => g.txs)
+        : groups
+            .flatMap((g) => g.txs)
+            .filter((t) => t.date.slice(0, 7) === scope.selected),
+    [groups, scope.selected],
+  );
+  const selectedLabel = useMemo(() => {
+    if (scope.selected === ALL_MONTHS) return null;
+    const m = scope.months.find((x) => x.key === scope.selected);
+    return m ? `${m.label} ${m.key.slice(0, 4)}` : scope.selected;
+  }, [scope.selected, scope.months]);
+  const partiesLabel = selectedLabel ? `in ${selectedLabel}` : "across your whole history";
+  const topParties = useMemo(() => {
+    const map = new Map<
+      string,
+      { name: string; total: number; count: number }
+    >();
+    for (const t of scopedTxs) {
+      if (t.amount >= 0 || !t.counterparty) continue;
+      const key = t.counterpartyKey || t.counterparty;
+      const entry = map.get(key) ?? {
+        name: t.counterparty,
+        total: 0,
+        count: 0,
+      };
+      entry.total += Math.abs(t.amount);
+      entry.count += 1;
+      map.set(key, entry);
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total).slice(0, 4);
+  }, [scopedTxs]);
   const cells = useMemo(() => monthOutCells(scope.result), [scope.result]);
 
   if (transactions.length === 0) {
@@ -235,36 +291,12 @@ export default function Insights({
   return (
     <div className="space-y-6">
       {scope.months.length > 0 && (
-        <div
-          className="flex gap-1 overflow-x-auto pb-1"
-          role="group"
-          aria-label="Month scope"
-        >
-          <button
-            type="button"
-            aria-pressed={scope.selected === ALL_MONTHS}
-            className={cn("tile", scope.selected === ALL_MONTHS && "tile-active")}
-            onClick={() => {
-              vibrateIfEnabled(8);
-              scope.select(ALL_MONTHS);
-            }}
-          >
-            All
-          </button>
-          {scope.months.map((m) => (
-            <button
-              key={m.key}
-              type="button"
-              aria-pressed={scope.selected === m.key}
-              className={cn("tile", scope.selected === m.key && "tile-active")}
-              onClick={() => {
-                vibrateIfEnabled(8);
-                scope.select(m.key);
-              }}
-            >
-              {m.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <MonthPickerSheet
+            months={scope.months}
+            selected={scope.selected}
+            onSelect={scope.select}
+          />
         </div>
       )}
 
@@ -301,6 +333,41 @@ export default function Insights({
             <FeeRadarCard result={scope.result} />
             <MonthOutCard cells={cells} />
           </div>
+          {topParties.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Who you paid most</CardTitle>
+                <CardDescription>{partiesLabel}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-1">
+                  {topParties.map((p) => (
+                    <li key={p.name}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(
+                            `/transactions?q=${encodeURIComponent(p.name)}`,
+                          )
+                        }
+                        className="-mx-1 flex w-full items-center gap-2 rounded-md px-1 py-2 text-left transition-colors hover:bg-muted/40"
+                      >
+                        <span className="min-w-0 flex-1 truncate text-sm">
+                          {p.name}
+                          <span className="ml-1.5 text-xs text-muted-foreground">
+                            {p.count} {p.count === 1 ? "payment" : "payments"}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-sm font-medium tabular-nums">
+                          {formatMoney(p.total)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
     </div>
