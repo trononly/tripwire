@@ -35,6 +35,7 @@ import {
 import { useQuickEntry } from "@/hooks/use-quick-entry";
 import { PageHeader } from "@/components/page-header";
 import { useFavourites } from "@/hooks/use-favourites";
+import { useContactPick } from "@/hooks/use-contact-pick";
 import { vibrateIfEnabled } from "@/lib/motion-settings";
 
 const TABS: { id: SendKind; label: string; icon: typeof SendIcon }[] = [
@@ -83,6 +84,11 @@ export default function Send({ simKey }: { simKey?: string | null }) {
   const auto = useAutomationAvailable();
   const qe = useQuickEntry();
   const fav = useFavourites(tab);
+  // A picked contact fills the number field; the star decides favourites.
+  const contact = useContactPick((r) => {
+    vibrateIfEnabled(8);
+    setPhone(formatPhoneInput(r.phone ?? ""));
+  });
 
   const phoneOk = normalizePhone(phone) !== "";
   const amountOk = isValidAmount(amount);
@@ -210,16 +216,16 @@ export default function Send({ simKey }: { simKey?: string | null }) {
             aria-invalid={touched && !phoneOk}
             className="h-11 rounded-xl pr-24 text-lg font-semibold tracking-wide tabular-nums"
           />
-          {/* The system contact picker: same bridge call the favourites
-              sheet uses, surfaced here where the number is typed. */}
+          {/* The system contact picker fills the field and nothing else:
+              saving to favourites is the star's job. */}
           <button
             type="button"
             aria-label="Pick from contacts"
-            onClick={fav.pickFromContacts}
-            disabled={fav.picking}
+            onClick={contact.start}
+            disabled={contact.picking}
             className="absolute right-12 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
           >
-            {fav.picking ? (
+            {contact.picking ? (
               <Loader2 className="size-5 animate-spin" aria-hidden />
             ) : (
               <Contact className="size-5" aria-hidden />
