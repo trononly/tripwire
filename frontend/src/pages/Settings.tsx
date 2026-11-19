@@ -85,13 +85,13 @@ function ThemeSegment() {
   const { theme, setTheme } = useTheme();
 
   return (
-    <div className="flex [&>*+*]:-ml-px">
+    <div className="inline-flex overflow-hidden rounded-[10px] border border-border">
       {themes.map(({ value, label }) => (
         <OptionButton
           key={value}
           selected={theme === value}
           onClick={() => setTheme(value)}
-          className="px-2.5 py-1.5 text-[13px]"
+          className="rounded-none border-0 px-2.5 py-1.5 text-[13px]"
         >
           {label}
         </OptionButton>
@@ -115,13 +115,13 @@ function ModeSegment({
   ];
 
   return (
-    <div className="flex [&>*+*]:-ml-px">
+    <div className="inline-flex overflow-hidden rounded-[10px] border border-border">
       {options.map(({ value, label }) => (
         <OptionButton
           key={value}
           selected={mode === value}
           onClick={() => onModeChange(value)}
-          className="px-2.5 py-1.5 text-[13px]"
+          className="rounded-none border-0 px-2.5 py-1.5 text-[13px]"
         >
           {label}
         </OptionButton>
