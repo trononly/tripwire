@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RecurringPayments } from "@/components/recurring-payments";
 import { usePlanReminders } from "@/hooks/use-plan-reminders";
 import { useRecurringPlans } from "@/hooks/use-recurring-plans";
+import { ALL_MONTHS, useMonthScope } from "@/hooks/use-month-scope";
+import { vibrateIfEnabled } from "@/lib/motion-settings";
 import {
   lastPaidOf,
   toPlanLike,
@@ -194,13 +196,19 @@ export default function Insights({
 
   usePlanReminders(plans, lastPaid, plansLoading);
 
+  // Month scope: "all" keeps the dataset-wide result the page receives;
+  // a month reruns the same analysis on that month's transactions.
+  // Recurring plans stay on the full dataset: they are patterns, not a
+  // month.
+  const scope = useMonthScope({ transactions, result, loading, error });
+
   const savePlan = async (draft: PlanDraft, id: string | null) => {
     if (id) return update(id, draft);
     return add(draft);
   };
 
-  const finding = useMemo(() => insightFinding(result), [result]);
-  const cells = useMemo(() => monthOutCells(result), [result]);
+  const finding = useMemo(() => insightFinding(scope.result), [scope.result]);
+  const cells = useMemo(() => monthOutCells(scope.result), [scope.result]);
 
   if (transactions.length === 0) {
     return (
@@ -226,15 +234,49 @@ export default function Insights({
 
   return (
     <div className="space-y-6">
-      {error && (
+      {scope.months.length > 0 && (
+        <div
+          className="flex gap-1 overflow-x-auto pb-1"
+          role="group"
+          aria-label="Month scope"
+        >
+          <button
+            type="button"
+            aria-pressed={scope.selected === ALL_MONTHS}
+            className={cn("tile", scope.selected === ALL_MONTHS && "tile-active")}
+            onClick={() => {
+              vibrateIfEnabled(8);
+              scope.select(ALL_MONTHS);
+            }}
+          >
+            All
+          </button>
+          {scope.months.map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              aria-pressed={scope.selected === m.key}
+              className={cn("tile", scope.selected === m.key && "tile-active")}
+              onClick={() => {
+                vibrateIfEnabled(8);
+                scope.select(m.key);
+              }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {scope.error && (
         <Card className="border-destructive">
           <CardContent className="pt-4 text-sm text-destructive">
-            {error}
+            {scope.error}
           </CardContent>
         </Card>
       )}
 
-      {loading || !result ? (
+      {scope.loading || !scope.result ? (
         <div className="space-y-5">
           <Skeleton className="h-28 rounded-none" />
           <Skeleton className="h-64 rounded-none" />
@@ -256,7 +298,7 @@ export default function Insights({
             onSkipPlan={setSkipped}
           />
           <div className="grid items-stretch gap-4 lg:grid-cols-2">
-            <FeeRadarCard result={result} />
+            <FeeRadarCard result={scope.result} />
             <MonthOutCard cells={cells} />
           </div>
         </div>
