@@ -4,7 +4,6 @@ import {
   ArrowLeftRight,
   Lightbulb,
   Settings as SettingsIcon,
-  Plus,
   Send as SendIcon,
   Store,
   ShoppingCart,
@@ -125,8 +124,7 @@ export function MobileNav() {
                 }}
                 className="flex min-h-14 items-center justify-center px-2"
               >
-                <span className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-full bg-pay-bg px-4 text-sm font-semibold text-pay-ink">
-                  <Plus className="size-4" strokeWidth={2} />
+                <span className="flex min-h-11 w-full items-center justify-center rounded-[10px] bg-pay-bg px-4 text-xs font-semibold text-pay-ink">
                   Pay
                 </span>
               </button>
