@@ -42,7 +42,7 @@ import {
 import { useInView } from "@/hooks/use-in-view";
 import { cn } from "@/lib/utils";
 import { formatBucketLabel, formatDay, formatMoney } from "@/lib/format";
-import { addDays, flowWindow, updatedPhrase, windowSlices } from "@/lib/home-window";
+import { addDays, flowWindow, windowSlices } from "@/lib/home-window";
 import { dueLabel, nextDue, toPlanLike } from "@/lib/recurring-plans";
 import {
   useTransactionGroups,
@@ -75,12 +75,6 @@ function whole(cents: number): string {
 function balanceParts(cents: number): [string, string | null] {
   const [whole, frac] = formatMoney(cents).split(".");
   return frac ? [whole, frac] : [whole, null];
-}
-
-/** Local day key of a Date, "YYYY-MM-DD", for formatting back via formatDay. */
-/** Local day as "YYYY-MM-DD". Display only: the hero's "Updated today". */
-function todayDay(): string {
-  return new Date().toLocaleDateString("en-CA");
 }
 
 // ---------------------------------------------------------------------------
@@ -318,9 +312,6 @@ function HomeCards({
               <CardTitle className="text-[13px] font-medium text-muted-foreground">
                 Balance
               </CardTitle>
-              <CardAction className="text-[12px] font-normal text-muted-foreground">
-                Updated {updatedPhrase(flow.endDay, todayDay())}
-              </CardAction>
             </CardHeader>
             <CardContent>
               <p className="num text-[34px] font-semibold leading-none tracking-tight">
@@ -348,7 +339,8 @@ function HomeCards({
                 <span className="font-medium text-money-out">
                   Out {whole(flow.outCents)}
                 </span>
-                <span> last 30 days, fees {whole(flow.feeCents)}</span>
+                {" · "}
+                <span>fees {whole(flow.feeCents)}</span>
               </p>
             </CardContent>
           </Card>
