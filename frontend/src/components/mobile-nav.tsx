@@ -12,6 +12,7 @@ import {
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { vibrateIfEnabled } from "@/lib/motion-settings";
+import { useDevMode } from "@/hooks/use-konami-code";
 import {
   Drawer,
   DrawerContent,
@@ -63,6 +64,10 @@ export function MobileNav() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+  // Android build-number ritual: ten taps on the Settings tab unlock
+  // developer tools. One extra tap per navigation is invisible to normal
+  // use; the counter expires after three seconds.
+  const dev = useDevMode();
 
   // Close the sheet on any route change: system back, a destination tap,
   // or a navbar tap while the Pay menu is open.
@@ -135,6 +140,7 @@ export function MobileNav() {
                 end={item.end}
                 onClick={() => {
                   vibrateIfEnabled(10);
+                  if (item.label === "Settings") dev.tap();
                   setOpen(false);
                 }}
                 className={({ isActive }) =>
