@@ -102,6 +102,12 @@
     --brand-strong: #b9312d;
     --money-in: #0f766e;
     --money-out: #b23a36;
+    /* "Where it went" rank ramp: --donut-1 is the largest share. */
+    --donut-1: var(--brand-strong);
+    --donut-2: #3d3d3b;
+    --donut-3: #8f8b84;
+    --donut-4: #c5c1b8;
+    --donut-5: #dedbd3;
     --pay-action: #0f766e;
     /* The Pay control is the one inverted surface: near-black in light
        mode, white in dark. Coral never touches it. */
@@ -149,6 +155,11 @@
     --brand-strong: #c73e38;
     --money-in: #3dd68c;
     --money-out: #f08a86;
+    --donut-1: var(--brand);
+    --donut-2: #8a8a90;
+    --donut-3: #4c4c52;
+    --donut-4: #323238;
+    --donut-5: #242429;
     --pay-action: #3dd68c;
     --pay-bg: #ffffff;
     --pay-ink: #0b0b0d;

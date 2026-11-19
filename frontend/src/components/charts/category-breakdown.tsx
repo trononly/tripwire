@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/format";
-import { cn } from "@/lib/utils";
 
 /**
  * One spending label, already normalised by the caller. The built-in M-Pesa
@@ -17,9 +16,9 @@ export type SpendSlice = {
 };
 
 /**
- * "Where it went": a ranked, one-hue breakdown instead of an eight-slice
- * rainbow. The row's bar is the share, the figure is the amount and the
- * small grey number is the percentage. A row is the whole tap target.
+ * "Where it went": a donut ring beside a legend, per the approved mockup
+ * (drawRing + legend). The legend row is the tap target, so the ring itself
+ * is inert and described to screen readers via its aria-label.
  */
 export function CategoryBreakdown({
   slices,
@@ -44,7 +43,26 @@ export function CategoryBreakdown({
     .map((slice) => ({ ...slice, value: Math.abs(slice.amount) }))
     .sort((a, b) => b.value - a.value);
   const total = rows.reduce((sum, row) => sum + row.value, 0);
-  const largest = rows[0]?.value ?? 1;
+
+  // The rank ramp: the first five ranks map onto --donut-1..5; anything
+  // beyond cycles through the non-brand colors so extra rows never crash.
+  const rampColor = (rank: number) =>
+    `var(--donut-${rank < 5 ? rank + 1 : 2 + ((rank - 5) % 4)})`;
+
+  // Contiguous arcs from 12 o'clock clockwise; each sweep is value/total.
+  // SVG angles run clockwise with sweep-flag 1 in its y-down coordinates.
+  let angle = -Math.PI / 2;
+  const arcs = rows.map((row, rank) => {
+    const start = angle;
+    const end = angle + (row.value / total) * Math.PI * 2;
+    angle = end;
+    const large = end - start > Math.PI ? 1 : 0;
+    return {
+      key: row.key,
+      color: rampColor(rank),
+      d: `M ${60 + 46 * Math.cos(start)} ${60 + 46 * Math.sin(start)} A 46 46 0 ${large} 1 ${60 + 46 * Math.cos(end)} ${60 + 46 * Math.sin(end)}`,
+    };
+  });
 
   return (
     <Card className="h-full">
@@ -70,46 +88,47 @@ export function CategoryBreakdown({
             No spending in this period.
           </div>
         ) : (
-          <ul className="-mx-1 divide-y divide-border/70">
-            {rows.map((row) => {
-              const share = total > 0 ? (row.value / total) * 100 : 0;
-              const width = Math.max(2, (row.value / largest) * 100);
-              return (
+          <div className="mt-3 flex items-center gap-4">
+            <svg
+              viewBox="0 0 120 120"
+              width={120}
+              height={120}
+              role="img"
+              aria-label={`Spending by category, ${rows[0].label} is the largest share`}
+            >
+              {arcs.map((arc) => (
+                <path
+                  key={arc.key}
+                  d={arc.d}
+                  fill="none"
+                  stroke={arc.color}
+                  strokeWidth={11}
+                  strokeLinecap="butt"
+                />
+              ))}
+            </svg>
+            <ul className="flex-1 space-y-1">
+              {rows.map((row, rank) => (
                 <li key={row.key}>
                   <button
                     type="button"
                     onClick={() => onSelectSlice?.(row.key)}
-                    className="group flex w-full flex-col gap-1.5 px-1 py-2.5 text-left transition-colors hover:bg-muted/40"
+                    className="-mx-1 flex w-full items-center gap-2 rounded-md px-1 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/40"
                   >
-                    <span className="flex items-baseline justify-between gap-3">
-                      <span className="truncate text-sm text-foreground">
-                        {row.label}
-                      </span>
-                      <span className="shrink-0 whitespace-nowrap text-sm tabular-nums text-foreground">
-                        {formatMoney(row.value)}
-                      </span>
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <span className="h-1.5 min-w-0 flex-1 bg-muted">
-                        <span
-                          className={cn(
-                            "block h-full transition-[width] duration-300",
-                            row === rows[0]
-                              ? "bg-primary group-hover:bg-primary/90"
-                              : "bg-muted-foreground/35 group-hover:bg-muted-foreground/50",
-                          )}
-                          style={{ width: `${width}%` }}
-                        />
-                      </span>
-                      <span className="w-11 shrink-0 text-right text-[12px] tabular-nums text-muted-foreground">
-                        {share.toFixed(1)}%
-                      </span>
+                    <span
+                      aria-hidden="true"
+                      className="size-[9px] shrink-0 rounded-full"
+                      style={{ backgroundColor: rampColor(rank) }}
+                    />
+                    <span className="truncate">{row.label}</span>
+                    <span className="ml-auto shrink-0 whitespace-nowrap font-medium tabular-nums">
+                      {formatMoney(row.value)}
                     </span>
                   </button>
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+            </ul>
+          </div>
         )}
         {footer}
       </CardContent>
