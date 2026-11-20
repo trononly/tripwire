@@ -142,12 +142,7 @@ export function AutomationStatusLine({
 			</p>
 		);
 	}
-	return (
-		<p className="text-center text-xs text-muted-foreground">
-			Tripwire dials *334# and fills the menus for you. You confirm with your
-			PIN as usual.
-		</p>
-	);
+	return null;
 }
 
 export function AutomationInterruptedNotice({

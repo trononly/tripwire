@@ -9,154 +9,18 @@ import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { useReduceMotionEnabled } from "@/lib/motion-settings";
-import { markDone, useOnboardingState } from "@/lib/onboarding-state";
+import {
+  finishOnboarding,
+  useOnboardingState,
+} from "@/lib/onboarding-state";
+import {
+  STEPS,
+  type Pose,
+  type StepTarget,
+  type TourStep,
+} from "@/lib/onboarding-steps";
 import { isAndroidBridge, requestNotificationPermission } from "@/lib/sms-bridge";
 import { cn } from "@/lib/utils";
-
-type Pose = "wave" | "point" | "smug" | "flustered" | "proud";
-
-/** The element a step lights up: hooks the app already renders, no new ones. */
-type StepTarget = {
-  /** CSS selector for the target, using hooks the app already renders. */
-  selector: string;
-  /** Disambiguates a selector that matches several elements (card titles). */
-  text?: string;
-  /** Measures this ancestor instead of the matched hook, e.g. the whole card. */
-  closest?: string;
-};
-
-type TourStep = {
-  id: string;
-  title: string;
-  /** One plain line that adds a fact the body does not. Empty when folded. */
-  quip: string;
-  body: string;
-  pose: Pose;
-  /** Hash route the app must be on before the target exists. */
-  route: string;
-  /** Null for a closing card with nothing on the app to point at. */
-  target: StepTarget | null;
-  /**
-   * The lesson is the interaction: no veil, no cutout, no press shield and
-   * no card, just the live app and a chip that moves the tour along.
-   */
-  interactive?: boolean;
-};
-
-const STEPS: readonly TourStep[] = [
-  {
-    id: "home",
-    title: "Your balance",
-    quip: "In and out cover the last 30 days.",
-    body: "The balance shows your money right now. With no statement active, this card opens your history.",
-    pose: "point",
-    route: "/",
-    target: { selector: 'main [data-slot="card"]' },
-  },
-  {
-    id: "pay",
-    title: "Paying someone",
-    quip: "",
-    body: "Tap Pay for four destinations: send money, Pochi la Biashara, pay bill and buy goods.",
-    pose: "smug",
-    route: "/",
-    target: { selector: 'nav button[aria-label="Pay"]' },
-    interactive: true,
-  },
-  {
-    id: "breakdown",
-    title: "Where the money went",
-    quip: "Tap a category to see its transactions.",
-    body: "The ring groups the last 30 days by category.",
-    pose: "smug",
-    route: "/",
-    target: {
-      selector: 'main svg[aria-label^="Spending by category"]',
-      closest: '[data-slot="card"]',
-    },
-  },
-  {
-    id: "coming-up",
-    title: "What is coming up",
-    quip: "",
-    body: "Coming up lists repeating payments and their next date. Tap or hold a payment to edit or delete it.",
-    pose: "flustered",
-    route: "/",
-    target: {
-      selector: 'main [data-slot="card"]',
-      text: "Coming up",
-    },
-  },
-  {
-    id: "history",
-    title: "Your statement history",
-    quip: "",
-    body: "The top-bar chip opens your statement history. Switch the active statement, import a new PDF statement or delete an old one.",
-    pose: "proud",
-    route: "/",
-    target: {
-      selector: "header button:has(svg.lucide-chevron-down)",
-    },
-  },
-  {
-    id: "ledger",
-    title: "The ledger",
-    quip: "",
-    body: "Tap any transaction to see the full receipt. The icon on the left sets its category.",
-    pose: "point",
-    route: "/transactions",
-    target: {
-      selector:
-        'main section button[aria-label^="Set category"] + button, main section button[aria-label^="Change category"] + button',
-    },
-    interactive: true,
-  },
-  {
-    id: "filters",
-    title: "Filters and search",
-    quip: "",
-    body: "Search matches the description, category or counterparty. Tap Filters to narrow the list by category, direction or date.",
-    pose: "point",
-    route: "/transactions",
-    target: {
-      selector: "main button:has(svg.lucide-sliders-horizontal)",
-    },
-    interactive: true,
-  },
-  {
-    id: "insights",
-    title: "Insights by month",
-    quip: "",
-    body: "Tap the month to scope the page to one month. All activity shows the whole history.",
-    pose: "flustered",
-    route: "/insights",
-    target: {
-      selector: 'main button[aria-haspopup="dialog"]',
-      text: "activity",
-    },
-    interactive: true,
-  },
-  {
-    id: "privacy",
-    title: "Privacy mode",
-    quip: "",
-    body: "The eye blurs every figure. Tap a figure to reveal it, or tap the eye again to turn the mode off.",
-    pose: "proud",
-    route: "/",
-    target: {
-      selector: 'header button[aria-label*="Privacy Mode"]',
-    },
-  },
-  {
-    id: "notifications",
-    title: "One last thing",
-    quip: "",
-    body: "Notifications let Tripwire warn you before a repeating bill is due. Declining changes nothing else.",
-    pose: "proud",
-    route: "/",
-    target: null,
-  },
-];
 
 /** One veil colour in both themes: dim, not blur, and let the target stay true. */
 const VEIL = "rgba(10, 10, 12, 0.72)";
@@ -485,10 +349,9 @@ function Mascot({ pose, className }: { pose: Pose; className?: string }) {
 }
 
 /**
- * First-run tour. Mounted for the life of the app and hidden once done, so
- * `restart()` from developer tools reopens it without a relaunch. A step
- * either spotlights a real control or, when the lesson is the interaction,
- * hands the live app over and keeps only a chip on screen.
+ * The tour's gate. It derives the unseen steps from the store and mounts a
+ * fresh run whenever `restart()` bumps the session, so a restart reopens even
+ * while the tour is already showing.
  */
 export function OnboardingTour({
   onRemoveDemo,
@@ -496,37 +359,64 @@ export function OnboardingTour({
   /** Deletes the seeded demo statement; the tour calls it on finish. */
   onRemoveDemo?: () => Promise<void> | void;
 } = {}) {
-  const { done } = useOnboardingState();
+  const { seen, session } = useOnboardingState();
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    setDismissed(false);
+  }, [session]);
+
+  const steps = STEPS.filter((step) => !seen.has(step.id));
+  const finish = useCallback(
+    (shown: readonly TourStep[]) => {
+      finishOnboarding(shown.map((step) => step.id));
+      setDismissed(true);
+      void onRemoveDemo?.();
+    },
+    [onRemoveDemo],
+  );
+
+  if (dismissed || steps.length === 0) return null;
+  return <TourRun key={session} steps={steps} onFinish={finish} />;
+}
+
+function TourRun({
+  steps,
+  onFinish,
+}: {
+  /** Only the steps this user has not met, in registry order. */
+  steps: readonly TourStep[];
+  onFinish: (shown: readonly TourStep[]) => void;
+}) {
   const reduceMotion = useReduceMotionEnabled();
   const navigate = useNavigate();
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [cardHeight, setCardHeight] = useState(0);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const askedNotification = useRef(false);
-  const step = STEPS[Math.min(index, STEPS.length - 1)];
-  const last = index === STEPS.length - 1;
+  const step = steps[Math.min(index, steps.length - 1)];
+  const last = index === steps.length - 1;
   const located = rect !== null;
   const closing = step.target === null;
+  const body = !isAndroidBridge() && step.desktopBody
+    ? step.desktopBody
+    : step.body;
 
   // Lock the document scroller, not the body: an overflow-hidden body
   // becomes its own scroll container and un-sticks the top bar.
   useEffect(() => {
-    if (done || step.interactive) return;
     const root = document.documentElement;
     const previous = root.style.overflow;
     root.style.overflow = "hidden";
     return () => {
       root.style.overflow = previous;
     };
-  }, [done, step.interactive]);
+  }, []);
 
   // The veil is painted by a box-shadow, not by a hit-target, so the page
   // stays measurable underneath: swallow every press outside the card here.
-  // An interactive step owns no veil, so the real UI stays live.
   useEffect(() => {
-    if (done || step.interactive) return;
     const swallow = (event: Event) => {
       const target = event.target;
       if (target instanceof Element && target.closest("[data-tour-card]")) {
@@ -541,62 +431,36 @@ export function OnboardingTour({
       window.removeEventListener("pointerdown", swallow, true);
       window.removeEventListener("click", swallow, true);
     };
-  }, [done, step.interactive]);
-
-  // A sheet covers the bottom of the screen, so the chip moves to the top
-  // while one is open: still above it, still tappable, clear of its buttons.
-  useEffect(() => {
-    if (done || !step.interactive) return;
-    const check = () => {
-      setDrawerOpen(
-        !!document.querySelector(
-          '[data-vaul-drawer][data-state="open"], [data-vaul-overlay][data-state="open"]',
-        ),
-      );
-    };
-    check();
-    const observer = new MutationObserver(check);
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["data-state"],
-    });
-    return () => observer.disconnect();
-  }, [done, step.interactive]);
+  }, []);
 
   const finish = useCallback(() => {
     askedNotification.current = false;
-    setIndex(0);
-    setRect(null);
-    markDone();
-    void onRemoveDemo?.();
-  }, [onRemoveDemo]);
+    onFinish(steps.slice(0, index + 1));
+  }, [index, onFinish, steps]);
 
   const advance = useCallback(() => {
     setRect(null);
-    if (index === STEPS.length - 1) finish();
+    if (last) finish();
     else setIndex((current) => current + 1);
-  }, [finish, index]);
+  }, [finish, last]);
 
   // The notification ask belongs here, not in Settings: the first reminder
   // needs POST_NOTIFICATIONS, and this is the one moment the user is being
   // walked through the app. A decline is final for the tour; no re-ask.
   useEffect(() => {
-    if (done || step.id !== "notifications" || askedNotification.current) {
+    if (step.id !== "core.notifications" || askedNotification.current) {
       return;
     }
     askedNotification.current = true;
     if (isAndroidBridge()) requestNotificationPermission();
-  }, [done, step.id]);
+  }, [step.id]);
 
   // Per step: navigate, wait for the target (and the app) to settle, bring
   // it into view at most once, then measure it.
   useEffect(() => {
-    if (done) return;
     let cancelled = false;
     let timer = 0;
-    const current = STEPS[index];
+    const current = steps[index];
     const target = current.target;
     // Re-navigating to the current route pushes a history entry and makes
     // ScrollToTop jump to the top, which would fight the step's own scroll.
@@ -611,9 +475,6 @@ export function OnboardingTour({
       if (cancelled) return;
       const el = onRoute(current.route) ? resolveTarget(target) : null;
       if (el) {
-        // An interactive step only checks the target exists; the app stays
-        // where the user left it, unscrolled and live.
-        if (current.interactive) return;
         void bringIntoView(el, reduceMotion).then(() => {
           if (cancelled) return;
           setRect(el.getBoundingClientRect());
@@ -632,7 +493,7 @@ export function OnboardingTour({
       const missing =
         waited > TARGET_TIMEOUT_MS || (waited > SETTLE_GRACE_MS && settledHere);
       if (missing) {
-        if (index === STEPS.length - 1) finish();
+        if (index === steps.length - 1) finish();
         else setIndex(index + 1);
         return;
       }
@@ -644,12 +505,12 @@ export function OnboardingTour({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [done, finish, index, navigate, reduceMotion]);
+  }, [finish, index, navigate, reduceMotion, steps]);
 
   // A rotation, a window resize or a card that grows must move the hole with
   // the target. Re-measure only; never scroll again inside a step.
   useEffect(() => {
-    if (done || !located || !step.target) return;
+    if (!located || !step.target) return;
     const target = step.target;
     const remeasure = () => {
       const el = resolveTarget(target);
@@ -663,20 +524,18 @@ export function OnboardingTour({
       window.removeEventListener("orientationchange", remeasure);
       window.visualViewport?.removeEventListener("resize", remeasure);
     };
-  }, [done, located, step]);
+  }, [located, step]);
 
   useLayoutEffect(() => {
     const node = cardRef.current;
-    if (!node || done) return;
+    if (!node) return;
     const measure = () => setCardHeight(node.getBoundingClientRect().height);
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [done, located, step.id]);
-
-  if (done) return null;
+  }, [located, step.id]);
 
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
@@ -693,72 +552,6 @@ export function OnboardingTour({
     ),
     240,
   );
-
-  if (step.interactive) {
-    const navRect = document
-      .querySelector("nav.fixed")
-      ?.getBoundingClientRect();
-    const aboveNav =
-      navRect && navRect.width > 0 && navRect.top < viewportHeight
-        ? viewportHeight - navRect.top + 8
-        : inset.bottom + EDGE;
-    return (
-      <div
-        data-tour-chip
-        data-tour-step={step.id}
-        role="region"
-        aria-label={`Onboarding step ${index + 1} of ${STEPS.length}`}
-        className={cn(
-          "pointer-events-auto fixed left-1/2 z-[100] -translate-x-1/2 rounded-2xl border border-border bg-background p-3 text-foreground shadow-2xl",
-          !reduceMotion &&
-            "animate-in fade-in slide-in-from-bottom-1 duration-150",
-        )}
-        style={{
-          top: drawerOpen ? Math.max(inset.top, 0) + 8 : undefined,
-          bottom: drawerOpen ? undefined : aboveNav,
-          width: Math.min(
-            viewportWidth - inset.left - inset.right - EDGE * 2,
-            416,
-          ),
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">
-            {index + 1}/{STEPS.length}
-          </span>
-          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-            {step.title}
-          </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={finish}
-            className="h-7 shrink-0 px-2 text-xs text-muted-foreground hover:text-foreground"
-          >
-            Skip
-          </Button>
-          {drawerOpen && (
-            <Button size="sm" onClick={advance} className="shrink-0">
-              Next
-            </Button>
-          )}
-        </div>
-        {!drawerOpen && (
-          <div className="mt-1.5 flex items-end gap-3">
-            <p
-              aria-live="polite"
-              className="min-w-0 flex-1 text-[12px] leading-snug text-muted-foreground"
-            >
-              {step.body}
-            </p>
-            <Button size="sm" onClick={advance} className="shrink-0">
-              Next
-            </Button>
-          </div>
-        )}
-      </div>
-    );
-  }
 
   let cardLeft = EDGE;
   let cardTop = 0;
@@ -890,7 +683,7 @@ export function OnboardingTour({
             </div>
           </div>
           <p className="mt-2 min-h-0 overflow-y-auto overscroll-contain text-[13px] leading-relaxed text-muted-foreground">
-            {step.body}
+            {body}
           </p>
           <div className="mt-3 flex items-center justify-between gap-2">
             <Button
@@ -908,11 +701,11 @@ export function OnboardingTour({
               role="progressbar"
               aria-label="Onboarding progress"
               aria-valuemin={1}
-              aria-valuemax={STEPS.length}
+              aria-valuemax={steps.length}
               aria-valuenow={index + 1}
               className="flex items-center justify-center gap-1.5"
             >
-              {STEPS.map((s, i) => (
+              {steps.map((s, i) => (
                 <span
                   key={s.id}
                   className={cn(
