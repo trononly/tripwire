@@ -32,6 +32,7 @@ import { useSimNames } from "@/hooks/use-sim-names";
 import { useSafeAreaInsets } from "@/hooks/use-safe-area";
 import { useSystemBars } from "@/hooks/use-system-bars";
 import { loadInitialMode, saveMode, type DataMode } from "@/lib/data-mode";
+import { simWallets } from "@/lib/sim-support";
 import { paySimKey } from "@/lib/pay-sim";
 import { hideSplash } from "@/lib/sms-bridge";
 import Transactions from "@/pages/Transactions";
@@ -136,8 +137,15 @@ function App() {
   }, [booting]);
 
   // SMS records are one-per-SIM: the switcher lists them and the active one
-  // feeds SMS mode. Newest import first, same order as History.
+  // feeds SMS mode. Newest import first, same order as History. The phone's
+  // current SIMs are appended so an unsupported carrier is visible even
+  // before it has a wallet.
   const smsMetas = stmts.statements.filter((s) => s.source === "sms");
+  const wallets = simWallets({
+    metas: smsMetas,
+    cards: sims.simCards,
+    numbers: sims.simNumbers,
+  });
   // Guided payments dial the wallet's own SIM: otherwise Android's default
   // call line, or its "Call with" chooser, decides which wallet's *334# menu
   // opens. Null (statements mode) lets the bridge pick a line.
@@ -220,9 +228,8 @@ function App() {
               statements={stmts.statements}
               mode={mode}
               isAndroid={sms.isAndroid}
-              smsMetas={smsMetas}
+              wallets={wallets}
               smsRecordId={sms.smsRecordId}
-              simNumbers={sims.simNumbers}
               historyOpen={historyOpen}
               activeId={stmts.activeId}
               setHistoryOpen={setHistoryOpen}
@@ -308,7 +315,7 @@ function App() {
                       smsTxCount={sms.smsTxs.length}
                       activeSmsId={sms.smsRecordId}
                       onSwitchSim={sms.handleSwitchSim}
-                      numbers={sims.simNumbers}
+                      wallets={wallets}
                       onRefreshSimNames={sims.refreshSimNames}
                       onRequestSimNames={sims.requestSimNamesGrant}
                       onTestArrival={sms.testArrivalAnnouncement}

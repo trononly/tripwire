@@ -311,7 +311,10 @@ export function requestSmsImport(): void {
 export interface SimCard {
 	subId: number;
 	slot: number;
+	/** Display name: the user's own SIM name, else the carrier. */
 	simLabel: string;
+	/** The network's name alone ("Safaricom", "Airtel"), "" when unknown. */
+	carrier: string;
 	/** Phone number, when the SIM reports one. Shown as subtext, never parsed. */
 	number: string;
 }
@@ -339,6 +342,7 @@ export function requestSimCards(): SimCard[] {
 			subId: typeof c.subId === "number" ? c.subId : -1,
 			slot: typeof c.slot === "number" ? c.slot : -1,
 			simLabel: typeof c.simLabel === "string" ? c.simLabel : "",
+			carrier: typeof c.carrier === "string" ? c.carrier : "",
 			number: typeof c.number === "string" ? c.number : "",
 		}));
 	} catch {

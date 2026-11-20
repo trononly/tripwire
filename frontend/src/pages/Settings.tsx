@@ -17,7 +17,11 @@ import {
   useAutoConfirmEnabled,
 } from "@/lib/payment-settings";
 import { cn } from "@/lib/utils";
-import { simName } from "@/components/sim-switcher";
+import {
+  isSelectableWallet,
+  walletSubtext,
+  type SimWallet,
+} from "@/lib/sim-support";
 import { useDevMode } from "@/hooks/use-konami-code";
 import { restart as restartOnboarding } from "@/lib/onboarding-state";
 import {
@@ -251,7 +255,7 @@ export default function Settings({
   smsTxCount,
   activeSmsId,
   onSwitchSim,
-  numbers,
+  wallets,
   onRefreshSimNames,
   onRequestSimNames,
   onTestArrival,
@@ -268,8 +272,8 @@ export default function Settings({
   activeSmsId: string | null;
   /** Switch SMS mode to another SIM's wallet. */
   onSwitchSim: (meta: store.StatementMeta) => void;
-  /** Phone numbers by SIM key, shown as subtext when set. */
-  numbers: Record<string, string>;
+  /** One row per stored wallet or SIM the phone reports. */
+  wallets: SimWallet[];
   /** Re-resolve carrier names when phone-state access is granted. */
   onRefreshSimNames: () => void;
   /** Ask for phone-state access (SIM names/numbers). Tap-only. */
@@ -382,49 +386,67 @@ export default function Settings({
 
       <BackupSetting />
 
-      {isAndroid && smsRecords.length > 0 && (
+      {isAndroid && wallets.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Wallets</CardTitle>
             <CardDescription>
               One wallet per SIM. Switching keeps balances and cashflow from
-              different wallets apart.
+              different wallets apart. Carriers Tripwire cannot analyze are
+              listed but cannot be selected.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {smsRecords.map((sim) => {
-              const isActive = sim.id === activeSmsId;
-              const number = numbers[sim.simId ?? ""];
+            {wallets.map((wallet) => {
+              const isActive = wallet.meta?.id === activeSmsId;
+              const selectable = isSelectableWallet(wallet);
+              const note = walletSubtext(wallet);
               return (
                 <button
-                  key={sim.id}
+                  key={wallet.key}
                   type="button"
                   aria-pressed={isActive}
-                  onClick={() => onSwitchSim(sim)}
+                  disabled={!selectable}
+                  onClick={() => {
+                    if (!wallet.meta) return;
+                    onSwitchSim(wallet.meta);
+                  }}
                   className={cn(
-                    "flex w-full min-w-0 items-center gap-3 rounded-none border p-3 text-left transition-colors hover:bg-muted/50",
+                    "flex w-full min-w-0 items-center gap-3 rounded-none border p-3 text-left transition-colors",
+                    selectable && "hover:bg-muted/50",
                     isActive && "border-primary/50 bg-primary/10",
+                    !selectable && "text-muted-foreground",
                   )}
                 >
                   <Smartphone
                     className={cn(
                       "size-5 shrink-0",
-                      isActive ? "text-foreground" : "text-muted-foreground",
+                      isActive
+                        ? "text-foreground"
+                        : "text-muted-foreground",
+                      !selectable && "opacity-60",
                     )}
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
-                      {simName(sim)}
+                    <span
+                      className={cn(
+                        "block truncate text-sm font-medium",
+                        !selectable && "opacity-60",
+                      )}
+                    >
+                      {wallet.name}
                     </span>
-                    {number && (
+                    {note && (
                       <span className="block truncate text-[12px] text-muted-foreground tabular-nums">
-                        {number}
+                        {note}
                       </span>
                     )}
                   </span>
-                  <span className="shrink-0 text-[12px] text-muted-foreground tabular-nums">
-                    {sim.txCount.toLocaleString()} txs
-                  </span>
+                  {selectable && wallet.txCount !== null && (
+                    <span className="shrink-0 text-[12px] text-muted-foreground tabular-nums">
+                      {wallet.txCount.toLocaleString()} txs
+                    </span>
+                  )}
                 </button>
               );
             })}

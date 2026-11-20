@@ -1187,8 +1187,10 @@ public class WailsBridge {
 
     /**
      * The phone's current SIM list as a JSON array of
-     * {subId, slot, simLabel, number}. Name preference: the user's own SIM
-     * name, then the mobile network (carrier) name. Number is "" when it
+     * {subId, slot, simLabel, carrier, number}. simLabel prefers the user's
+     * own SIM name and falls back to the mobile network name; carrier is the
+     * network name alone so the UI can decide whether the carrier is
+     * supported without guessing from a custom label. Number is "" when it
      * cannot be read (often blank on the SIM, or extra number permission
      * missing) - callers show it as subtext only when set. Empty array
      * without phone-state access. Never prompts.
@@ -1226,6 +1228,7 @@ public class WailsBridge {
                     // Some devices blank the carrier instead of returning it.
                 }
                 String label = name != null ? name.toString().trim() : "";
+                String carrierName = carrier != null ? carrier.toString().trim() : "";
                 if (label.isEmpty() && carrier != null) {
                     label = carrier.toString().trim();
                 }
@@ -1243,6 +1246,7 @@ public class WailsBridge {
                         .put("subId", info.getSubscriptionId())
                         .put("slot", info.getSimSlotIndex())
                         .put("simLabel", label)
+                        .put("carrier", carrierName)
                         .put("number", number));
             }
             return out.toString();

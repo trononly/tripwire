@@ -3,45 +3,30 @@ import { Check, Smartphone } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { StatementMeta } from "../../bindings/mpesa-analyzer/internal/store/models";
+import {
+  isSelectableWallet,
+  walletSubtext,
+  type SimWallet,
+} from "@/lib/sim-support";
 import { Button } from "@/components/ui/button";
 
 /**
- * A wallet's display name. The bridge sends the carrier's own SIM name
- * ("Safaricom", "Airtel"); records written before SIMs were captured have
- * only the derived key, so fall back to "SIM <slot>".
- */
-export function simName(meta: StatementMeta): string {
-  const label = meta.simLabel?.trim();
-  if (label) return label;
-  const keyed = /^(?:sim|sub)-(\d+)$/.exec(meta.simId ?? "");
-  if (keyed) {
-    // Slot keys are zero-based; subscription keys are not, but a friendly
-    // ordinal is the best either can offer when the carrier name is missing.
-    return `SIM ${/^sim-/.test(meta.simId ?? "") ? Number(keyed[1]) + 1 : keyed[1]}`;
-  }
-  return "SIM";
-}
-
-/**
- * SIM switcher for SMS mode. M-Pesa SMS are identical on every SIM, so an
- * import that spans two SIMs produces one record per SIM; this picks which
- * wallet the Dashboard, Transactions and Insights analyze. Rendered only
- * with two or more SIM records - a single-SIM phone needs no picker.
+ * SIM switcher for SMS mode. The list is every stored SMS wallet plus every
+ * SIM the phone reports, so an unsupported carrier is visible instead of
+ * silently absent. Only a wallet with M-Pesa data on a supported carrier is
+ * selectable; the rest are listed disabled with a plain reason.
  *
  * Deliberately not a portaled menu: the list renders in place under the
  * header button so it can never cover or displace the header on small
  * screens.
  */
 export function SimSwitcher({
-  sims,
+  wallets,
   activeId,
-  numbers = {},
   onSwitch,
 }: {
-  sims: StatementMeta[];
+  wallets: SimWallet[];
   activeId: string | null;
-  /** Phone numbers by SIM key, shown as subtext when set. */
-  numbers?: Record<string, string>;
   onSwitch: (meta: StatementMeta) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -63,23 +48,28 @@ export function SimSwitcher({
     };
   }, [open ]);
 
-  if (sims.length < 2) return null;
+  if (wallets.length < 2) return null;
 
-  const active = sims.find((s) => s.id === activeId) ?? sims[0];
+  const active =
+    wallets.find((w) => w.meta?.id === activeId) ??
+    wallets.find(isSelectableWallet);
+  // Nothing to switch between without an active wallet, which only a
+  // selectable entry can become.
+  if (!active) return null;
 
   return (
     <div ref={rootRef} className="relative">
       <Button
         size="sm"
         variant="outline"
-        aria-label={`Wallet SIM: ${simName(active)}`}
+        aria-label={`Wallet SIM: ${active.name}`}
         aria-expanded={open}
         title="Switch M-Pesa wallet SIM"
         onClick={() => setOpen((v) => !v)}
       >
         <Smartphone />
         <span className="max-w-24 truncate sm:max-w-none">
-          {simName(active)}
+          {active.name}
         </span>
       </Button>
       {open && (
@@ -91,20 +81,26 @@ export function SimSwitcher({
           <p className="px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
             M-Pesa wallet
           </p>
-          {sims.map((sim) => {
-            const isActive = sim.id === active.id;
-            const number = numbers[sim.simId ?? ""];
+          {wallets.map((wallet) => {
+            const selectable = isSelectableWallet(wallet);
+            const isActive = wallet.meta?.id === activeId;
+            const note = walletSubtext(wallet);
             return (
               <button
-                key={sim.id}
+                key={wallet.key}
                 type="button"
                 role="menuitem"
+                disabled={!selectable}
                 onClick={() => {
+                  if (!wallet.meta) return;
                   setOpen(false);
-                  onSwitch(sim);
+                  onSwitch(wallet.meta);
                 }}
                 className={cn(
-                  "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
+                  "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors",
+                  selectable
+                    ? "hover:bg-accent"
+                    : "cursor-default text-muted-foreground",
                   isActive && "font-medium",
                 )}
               >
@@ -115,16 +111,25 @@ export function SimSwitcher({
                   )}
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate">{simName(sim)}</span>
-                  {number && (
+                  <span
+                    className={cn(
+                      "block truncate",
+                      !selectable && "opacity-60",
+                    )}
+                  >
+                    {wallet.name}
+                  </span>
+                  {note && (
                     <span className="block truncate text-xs text-muted-foreground tabular-nums">
-                      {number}
+                      {note}
                     </span>
                   )}
                 </span>
-                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  {sim.txCount.toLocaleString()}
-                </span>
+                {selectable && wallet.txCount !== null && (
+                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                    {wallet.txCount.toLocaleString()}
+                  </span>
+                )}
                 {isActive && <Check className="size-4 shrink-0" />}
               </button>
             );

@@ -66,6 +66,15 @@ import {
 } from "@/lib/pending-payment";
 import { paySimKey } from "@/lib/pay-sim";
 import {
+	carrierSupport,
+	isSelectableWallet,
+	simName,
+	simWallets,
+	walletSubtext,
+} from "@/lib/sim-support";
+import { SimSwitcher } from "@/components/sim-switcher";
+import type * as storeModels from "../bindings/mpesa-analyzer/internal/store/models";
+import {
 	AUTO_CONFIRM_KEY,
 	setAutoConfirmEnabled,
 } from "@/lib/payment-settings";
@@ -801,6 +810,137 @@ describe("pay-sim", () => {
 			paySimKey({ source: "statements", simId: "sim-0", simLabel: "Safaricom" }),
 		).toBeNull();
 		expect(paySimKey({ source: "sms", simId: " " })).toBeNull();
+	});
+});
+
+// --- sim wallets ---
+
+function simMeta(overrides: Partial<storeModels.StatementMeta> = {}): storeModels.StatementMeta {
+	return {
+		id: "rec-1",
+		name: "SMS import",
+		source: "sms",
+		simId: "sim-0",
+		simLabel: "Safaricom",
+		dateRange: { start: "2026-11-01", end: "2026-11-19" },
+		txCount: 12,
+		importedAt: "2026-11-19T10:00:00Z",
+		...overrides,
+	};
+}
+
+describe("sim carrier support", () => {
+	it("supports Safaricom however the platform spells it", () => {
+		expect(carrierSupport("Safaricom")).toBe("supported");
+		expect(carrierSupport(" SAFARICOM ")).toBe("supported");
+		expect(carrierSupport("Safaricom PLC")).toBe("supported");
+	});
+
+	it("marks every other reported carrier unsupported", () => {
+		expect(carrierSupport("Airtel")).toBe("unsupported");
+		expect(carrierSupport("Telkom")).toBe("unsupported");
+		expect(carrierSupport("Telecom")).toBe("unsupported");
+	});
+
+	it("treats a carrier the phone did not report as unknown, not unsupported", () => {
+		expect(carrierSupport("")).toBe("unknown");
+		expect(carrierSupport(null)).toBe("unknown");
+		expect(carrierSupport(undefined)).toBe("unknown");
+	});
+});
+
+describe("sim wallets", () => {
+	it("lists an unsupported SIM with no wallet behind it", () => {
+		const wallets = simWallets({
+			metas: [simMeta()],
+			cards: [
+				{ subId: 1, slot: 0, simLabel: "M-Pesa", carrier: "Safaricom", number: "0712345678" },
+				{ subId: 2, slot: 1, simLabel: "Airtel", carrier: "Airtel", number: "" },
+			],
+		});
+		expect(wallets.map((w) => w.name)).toEqual(["Safaricom", "Airtel"]);
+		const airtel = wallets[1];
+		expect(airtel.meta).toBeNull();
+		expect(airtel.txCount).toBeNull();
+		expect(airtel.support).toBe("unsupported");
+		expect(isSelectableWallet(airtel)).toBe(false);
+		expect(walletSubtext(airtel)).toBe("Not supported yet");
+	});
+
+	it("reads support from the network, not a custom SIM name", () => {
+		const wallets = simWallets({
+			metas: [simMeta({ simLabel: "Calvin" })],
+			cards: [
+				{ subId: 1, slot: 0, simLabel: "Calvin", carrier: "Safaricom", number: "" },
+			],
+		});
+		expect(wallets).toHaveLength(1);
+		expect(wallets[0].name).toBe("Calvin");
+		expect(wallets[0].support).toBe("supported");
+		expect(isSelectableWallet(wallets[0])).toBe(true);
+	});
+
+	it("keeps a wallet usable when the phone reports no carrier", () => {
+		const wallets = simWallets({ metas: [simMeta({ simLabel: "" })] });
+		expect(wallets[0].name).toBe("SIM 1");
+		expect(wallets[0].support).toBe("unknown");
+		expect(isSelectableWallet(wallets[0])).toBe(true);
+	});
+
+	it("does not invent a name or a wallet for a nameless detected SIM", () => {
+		const wallets = simWallets({
+			metas: [],
+			cards: [
+				{ subId: -1, slot: 1, simLabel: "", carrier: "", number: "" },
+			],
+		});
+		expect(wallets).toEqual([
+			{
+				key: "sim-1",
+				name: "SIM 2",
+				support: "unknown",
+				number: "",
+				meta: null,
+				txCount: null,
+			},
+		]);
+		expect(walletSubtext(wallets[0])).toBe("No M-Pesa wallet");
+	});
+
+	it("names a record with no SIM key without inventing a carrier", () => {
+		expect(simName({ simId: "", simLabel: "" })).toBe("SIM");
+	});
+});
+
+describe("SimSwitcher", () => {
+	it("lists an unsupported SIM disabled and never switches to it", () => {
+		const onSwitch = vi.fn();
+		const wallets = simWallets({
+			metas: [simMeta()],
+			cards: [
+				{ subId: 1, slot: 0, simLabel: "Safaricom", carrier: "Safaricom", number: "" },
+				{ subId: 2, slot: 1, simLabel: "Airtel", carrier: "Airtel", number: "" },
+			],
+		});
+		render(
+			<SimSwitcher
+				wallets={wallets}
+				activeId="rec-1"
+				onSwitch={onSwitch}
+			/>,
+		);
+
+		fireEvent.click(
+			screen.getByRole("button", { name: /wallet sim: safaricom/i }),
+		);
+		const airtel = screen.getByRole("menuitem", { name: /airtel/i });
+		expect(airtel).toBeDisabled();
+		expect(airtel).toHaveTextContent("Not supported yet");
+		fireEvent.click(airtel);
+		expect(onSwitch).not.toHaveBeenCalled();
+
+		fireEvent.click(screen.getByRole("menuitem", { name: /safaricom/i }));
+		expect(onSwitch).toHaveBeenCalledWith(wallets[0].meta);
 	});
 });
 

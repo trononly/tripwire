@@ -302,7 +302,8 @@ public class WailsJSBridge {
     }
 
     /**
-     * Current SIM list as a JSON array of {subId, slot, simLabel, number}.
+     * Current SIM list as a JSON array of
+     * {subId, slot, simLabel, carrier, number}.
      * Called from JavaScript: wails.getSimCards()
      */
     @JavascriptInterface

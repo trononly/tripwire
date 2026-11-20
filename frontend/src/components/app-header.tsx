@@ -9,15 +9,15 @@ import { BrandMark } from "@/components/brand-mark";
 import { setPrivacyMode, usePrivacyMode } from "@/lib/privacy-mode";
 import { useDevMode } from "@/hooks/use-konami-code";
 import type * as store from "../../bindings/mpesa-analyzer/internal/store/models";
+import type { SimWallet } from "@/lib/sim-support";
 import type { DataMode } from "@/lib/data-mode";
 
 export interface AppHeaderProps {
 	statements: store.StatementMeta[];
 	mode: DataMode;
 	isAndroid: boolean;
-	smsMetas: store.StatementMeta[];
+	wallets: SimWallet[];
 	smsRecordId: string | null;
-	simNumbers: Record<string, string>;
 	historyOpen: boolean;
 	activeId: string | null;
 	setHistoryOpen: (open: boolean) => void;
@@ -55,9 +55,8 @@ export function AppHeader(props: AppHeaderProps) {
 		statements,
 		mode,
 		isAndroid,
-		smsMetas,
+		wallets,
 		smsRecordId,
-		simNumbers,
 		historyOpen,
 		activeId,
 		setHistoryOpen,
@@ -83,9 +82,8 @@ export function AppHeader(props: AppHeaderProps) {
 				</div>
 
 				<div className="flex min-w-0 items-center gap-1.5">
-					{(statements.length > 0 || smsMetas.length > 0) && (
-						<PrivacyToggle />
-					)}
+					{(statements.length > 0 ||
+						wallets.some((w) => w.meta !== null)) && <PrivacyToggle />}
 					{statements.length > 0 && mode === "statements" && (
 						<HistorySheet
 							statements={statements}
@@ -113,9 +111,8 @@ export function AppHeader(props: AppHeaderProps) {
 					)}
 					{isAndroid && mode === "sms" && (
 						<SimSwitcher
-							sims={smsMetas}
+							wallets={wallets}
 							activeId={smsRecordId}
-							numbers={simNumbers}
 							onSwitch={onSwitchSim}
 						/>
 					)}
