@@ -35,6 +35,7 @@ export function useQuickEntry() {
   const [code, setCode] = useState<string | null>(null);
   const offRef = useRef<(() => void) | null>(null);
   const startOffRef = useRef<(() => void) | null>(null);
+  const floorRef = useRef(0);
   const statusRef = useRef<QuickEntryStatus>("idle");
   statusRef.current = status;
   // Synchronous guard: a double tap can land before React re-renders the
@@ -42,6 +43,7 @@ export function useQuickEntry() {
   const activeRef = useRef(false);
 
   const cleanup = useCallback(() => {
+    window.clearTimeout(floorRef.current);
     offRef.current?.();
     offRef.current = null;
     startOffRef.current?.();
@@ -51,10 +53,10 @@ export function useQuickEntry() {
   useEffect(() => cleanup, [cleanup]);
 
   // Returning to the app means the USSD dialog closed: the user either paid
-  // or cancelled. The native side emits complete/aborted while we were in the
-  // background, but if that event is missed the button would stay on
-  // "Paying..." until the 90s timeout. Give queued events a moment, then
-  // clear the run so Pay now is usable again.
+  // or cancelled, and Android exposes no cancel signal (see the USSD bridge
+  // note). The real foreground signal is the native resume hook above, not
+  // DOM visibility, which this WebView does not deliver. Give queued events
+  // a moment, then release the run so Pay now is usable again.
   useEffect(() => {
     let timer = 0;
     const onForeground = () => {
@@ -86,10 +88,12 @@ export function useQuickEntry() {
         }
       }, 2500);
     };
+    window.addEventListener("mpesa:foreground", onForeground);
     document.addEventListener("visibilitychange", onForeground);
     window.addEventListener("focus", onForeground);
     return () => {
       window.clearTimeout(timer);
+      window.removeEventListener("mpesa:foreground", onForeground);
       document.removeEventListener("visibilitychange", onForeground);
       window.removeEventListener("focus", onForeground);
     };
@@ -116,10 +120,18 @@ export function useQuickEntry() {
       // started; it stays valid for the SMS window in pending-payment.ts.
       markPendingGuidedPayment();
       // A failed dial (permission, automation off) must not leave the marker
-      // armed for an unrelated spend in the next ten minutes.
+      // armed for an unrelated spend in the next ten minutes, and must not
+      // latch the button: a dial that never placed has no result coming.
       startOffRef.current = Events.Once("common:ussd", (ev) => {
         const data = ev.data as { ok?: boolean };
-        if (data && data.ok === false) clearPendingGuidedPayment();
+        if (data && data.ok === false) {
+          clearPendingGuidedPayment();
+          activeRef.current = false;
+          cleanup();
+          setStatus("interrupted");
+          setCode("dial-failed");
+          setReason("the phone did not place the call");
+        }
       });
       offRef.current = Events.On("common:ussd-auto", (ev) => {
         const data = ev.data as UssdAutoEvent;
@@ -134,8 +146,10 @@ export function useQuickEntry() {
             setStatus("awaiting-pin");
             break;
           case "awaiting-confirm":
+            // Keep listening: the cancel happens after this prompt, and the
+            // service stops watching here. Unsubscribing now is what left
+            // the run latched forever.
             setStatus("awaiting-confirm");
-            cleanup();
             break;
           case "complete":
             activeRef.current = false;
@@ -155,6 +169,25 @@ export function useQuickEntry() {
           }
         }
       });
+      // Floor of last resort: Android never reports a cancel, so a run that
+      // hears nothing for three minutes releases itself with the unknown
+      // outcome instead of refusing the next payment forever.
+      floorRef.current = window.setTimeout(() => {
+        const now = statusRef.current;
+        if (
+          now === "starting" ||
+          now === "step" ||
+          now === "awaiting-pin" ||
+          now === "awaiting-confirm"
+        ) {
+          activeRef.current = false;
+          cleanup();
+          setStatus("interrupted");
+          setCode("outcome-unknown");
+          setReason("no result after three minutes");
+          clearPendingGuidedPayment();
+        }
+      }, 190_000);
       startUssdQuickEntry(script, simKey);
     },
     [cleanup],

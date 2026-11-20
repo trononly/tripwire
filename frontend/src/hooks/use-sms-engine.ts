@@ -220,6 +220,9 @@ export function useSmsEngine(deps: {
 	foregroundHandler.current = () => {
 		refreshPerms();
 		void refreshSmsNow(false);
+		// In-app listeners get the same signal by event, so consumers never
+		// reassign this global and clobber each other.
+		window.dispatchEvent(new Event("mpesa:foreground"));
 	};
 	useEffect(() => {
 		window.__mpesaOnForeground = () => foregroundHandler.current();
