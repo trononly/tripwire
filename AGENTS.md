@@ -72,6 +72,13 @@ The `.github/PULL_REQUEST_TEMPLATE.md` mirrors this. `gh pr create` does not
 apply the template automatically, so pass the `## What's new` section in
 `--body` yourself and set the user-facing line with `--title`.
 
+## Verifying on the phone
+
+`scripts/phone.mjs` drives the debug build by element text instead of screen
+coordinates, and `opencode.json` registers it as the `phone` MCP server. Use a
+real device: the x86_64 emulator build dies in the pure-Go sqlite before the
+WebView loads. `README.md` has the commands.
+
 ## Checks before opening a PR
 
 ```
