@@ -118,9 +118,14 @@ export function CategoryBreakdown({
                       className="size-[9px] shrink-0 rounded-full"
                       style={{ backgroundColor: rampColor(rank) }}
                     />
-                    <span className="truncate">{row.label}</span>
+                    <span className="truncate" title={row.label}>
+                      {row.label}
+                    </span>
                     <span className="ml-auto shrink-0 whitespace-nowrap font-medium tabular-nums">
-                      {formatMoney(row.value)}
+                      {row.value.toLocaleString("en-KE", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                     </span>
                   </button>
                 </li>

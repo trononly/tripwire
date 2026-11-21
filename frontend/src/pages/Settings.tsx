@@ -412,7 +412,7 @@ export default function Settings({
                     onSwitchSim(wallet.meta);
                   }}
                   className={cn(
-                    "flex w-full min-w-0 items-center gap-3 rounded-none border p-3 text-left transition-colors",
+                    "flex w-full min-w-0 items-center gap-3 rounded-[10px] border p-3 text-left transition-colors",
                     selectable && "hover:bg-muted/50",
                     isActive && "border-primary/50 bg-primary/10",
                     !selectable && "text-muted-foreground",
