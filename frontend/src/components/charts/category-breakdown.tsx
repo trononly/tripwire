@@ -122,7 +122,7 @@ export function CategoryBreakdown({
                       {row.label}
                     </span>
                     <span className="ml-auto shrink-0 whitespace-nowrap font-medium tabular-nums">
-                      {row.value.toLocaleString("en-KE", {
+                      {(row.value / 100).toLocaleString("en-KE", {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}
