@@ -35,8 +35,8 @@ suffix, so a pre-release would share a code with the final release.
 ## Release day
 
 1. `git switch main && git pull --ff-only`
-2. Confirm CI is green on `main`:
-   `gh run list --workflow CI --branch main --limit 1`
+2. Confirm the last merged PR was green:
+   `gh pr list --state merged --limit 1 --json number,statusCheckRollup`
 3. Draft the notes:
    `node scripts/draft-release-notes.mjs tripwire-X.Y.Z`
 4. Edit `release-notes/X.Y.Z.md`. Group related changes, drop duplicates and
@@ -63,7 +63,7 @@ suffix, so a pre-release would share a code with the final release.
    git push origin tripwire-X.Y.Z
    ```
 
-7. Watch the release workflow. It builds the APK/AAB, refuses to publish
+7. Watch the release workflow. It builds the APK, refuses to publish
    without the notes file, and creates the GitHub Release.
 8. Install the released APK **over the previous version** on a real device.
    Verify the database and settings survived, the in-app What's new shows the

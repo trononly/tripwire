@@ -1,8 +1,8 @@
 # Continuous integration for Tripwire (Wails v3 + React/TypeScript).
 #
-# Runs on:
-#   * every pull_request
-#   * every push to `main`
+# Runs on every pull_request only. The merge commit is the one GitHub built
+# for that PR, so a push-to-main run would repeat the same jobs on the same
+# tree; the green PR is what gates the merge.
 #
 # Jobs:
 #   go       - `go vet ./...` and `go test ./...` on Linux, with the GTK4 /
@@ -14,7 +14,7 @@
 #
 # This workflow produces no release artifacts; it only validates the code.
 # Releases are mobile-only (see release.yml): pushing a `tripwire-*` tag
-# builds the Tripwire-x.y.z APK/AAB and publishes the GitHub Release the
+# builds the Tripwire-x.y.z APK and publishes the GitHub Release the
 # in-app updater checks.
 
 name: CI
@@ -25,9 +25,6 @@ on:
     # contributor fixes the PR body or adds `skip-release-notes`. Without
     # them a label added after opening the PR would not re-trigger CI.
     types: [opened, synchronize, reopened, edited, labeled, unlabeled]
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -195,7 +192,6 @@ jobs:
       # `skip-release-notes` label for maintenance PRs with no user-facing
       # change (dependency bumps, CI-only work, etc.).
       - name: Check the PR's What's new section
-        if: github.event_name == 'pull_request'
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
