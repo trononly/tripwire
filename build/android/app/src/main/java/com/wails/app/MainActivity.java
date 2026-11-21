@@ -30,6 +30,8 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -60,6 +62,11 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private WailsBridge bridge;
+    /**
+     * Android 13+ delivers the system back gesture here, not to
+     * onBackPressed(). Left null on older versions.
+     */
+    private OnBackInvokedCallback backCallback;
     /** Launch splash held over the WebView until the UI paints. */
     private View splash;
     /**
@@ -121,6 +128,15 @@ public class MainActivity extends AppCompatActivity {
 
         // Set up WebView
         setupWebView();
+
+        // Android 13+ hands back to OnBackInvokedDispatcher. Overriding
+        // onBackPressed() alone is never called there, which finished the
+        // activity with a modal still open instead of closing it.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            backCallback = this::handleBack;
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, backCallback);
+        }
 
         // Load the application
         loadApplication();
@@ -989,6 +1005,10 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        if (backCallback != null) {
+            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(backCallback);
+            backCallback = null;
+        }
         super.onDestroy();
         unregisterSystemEventReceivers();
         if (bridge != null) {
@@ -1012,12 +1032,21 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
+        handleBack();
+    }
+
+    /**
+     * Give the React shell the first chance: an open dialog, drawer or sheet
+     * closes itself and returns true, so back never pops the route underneath
+     * it. Otherwise pop the WebView's own history, where the router maps a
+     * secondary page back to the last primary tab. With nothing left to pop,
+     * leave the app.
+     */
+    private void handleBack() {
         if (webView == null) {
-            super.onBackPressed();
+            finish();
             return;
         }
-        // Give the React shell the first chance: an open dialog/drawer closes
-        // itself and returns true, so back never pops the route underneath it.
         webView.evaluateJavascript(
                 "(function(){try{return !!(window.__tripwireHandleBack&&window.__tripwireHandleBack());}catch(e){return false;}})()",
                 value -> {
@@ -1025,13 +1054,8 @@ public class MainActivity extends AppCompatActivity {
                     if (webView.canGoBack()) {
                         webView.goBack();
                     } else {
-                        systemBack();
+                        finish();
                     }
                 });
-    }
-
-    /** Finish the activity from a callback without touching the JS stack. */
-    private void systemBack() {
-        super.onBackPressed();
     }
 }
