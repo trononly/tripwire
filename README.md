@@ -157,6 +157,30 @@ Production build:
 The Android SMS path only exists on a device, so its build/install loop lives
 in the **Android debug workflow (SMS import)** section below.
 
+## Driving the app on a phone
+
+`scripts/phone.mjs` drives the debug build on a connected phone, addressing
+elements by their text instead of screen coordinates. It uses adb for native
+surfaces such as permission dialogs, and the WebView's DevTools socket for the
+app UI, so the debug build must be installed and running. Set
+`ANDROID_SERIAL` when more than one device is attached.
+
+    node scripts/phone.mjs status
+    node scripts/phone.mjs open settings
+    node scripts/phone.mjs tap "Import SMS"
+    node scripts/phone.mjs swipe up
+    node scripts/phone.mjs read
+    node scripts/phone.mjs shot /tmp/opencode/settings.png
+
+`open`, `mode`, `privacy`, `dev` and `reset` run `window.tripwire`, the
+command surface a debug build exposes and a release build never does.
+`key back` and `screen` cover the native side, and `eval` is the escape
+hatch.
+
+The same actions are an MCP server (`node scripts/phone.mjs --mcp`,
+registered in `opencode.json`), so an agent calls `tap` instead of shelling
+out to adb.
+
 ## Tests
 
     go test ./...                          # Go: parser, analysis, recurring, store, ...

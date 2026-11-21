@@ -22,6 +22,7 @@ import { useChangelogPrefetch } from "@/hooks/use-changelog";
 import { UpdateDialog } from "@/components/update-dialog";
 import { RestrictedSettingsGuide } from "@/components/restricted-settings-guide";
 import { MobileNav } from "@/components/mobile-nav";
+import { DevCommands } from "@/components/dev-commands";
 import { OnboardingTour } from "@/components/onboarding-tour";
 import { useOnboardingState, getDemoId, setDemoId, clearDemoId } from "@/lib/onboarding-state";
 import { SeedDemoStatement } from "../bindings/mpesa-analyzer/parseservice";
@@ -213,6 +214,7 @@ function App() {
     >
       <HashRouter>
         <SystemBarsSync />
+        <DevCommands onMode={setMode} />
         <ScrollToTop />
         <BackToPrimaryTabs />
         <SidebarProvider>

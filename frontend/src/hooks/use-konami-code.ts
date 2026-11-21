@@ -39,6 +39,11 @@ function setUnlocked(next: boolean) {
   listeners.forEach((l) => l());
 }
 
+/** Unlock or lock developer tools from the debug console. */
+export function setDevMode(next: boolean) {
+	setUnlocked(next);
+}
+
 function subscribe(cb: () => void) {
   listeners.add(cb);
   return () => listeners.delete(cb);
