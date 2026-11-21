@@ -32,7 +32,6 @@ import {
   type SpendSlice,
 } from "@/components/charts/category-breakdown";
 import { Private } from "@/components/privacy";
-import { maxDayOf } from "@/lib/date-window";
 import { useDonutMode } from "@/lib/donut-mode";
 import { useRecurringPlans } from "@/hooks/use-recurring-plans";
 import {
@@ -41,17 +40,14 @@ import {
 } from "@/lib/motion-settings";
 import { useInView } from "@/hooks/use-in-view";
 import { cn } from "@/lib/utils";
-import { formatBucketLabel, formatDay, formatMoney } from "@/lib/format";
+import { formatBucketLabel, formatMoney } from "@/lib/format";
 import { addDays, flowWindow, windowSlices } from "@/lib/home-window";
-import { dueLabel, nextDue, toPlanLike, type PlanDraft } from "@/lib/recurring-plans";
+import { dueLabel, nextDue, toPlanLike } from "@/lib/recurring-plans";
 import { RecurringPlanSheet } from "@/components/recurring-plan-sheet";
 import { PlanActionSheet } from "@/components/plan-action-sheet";
 import { useLongPress } from "@/hooks/use-long-press";
 import type { RecurringPlan } from "../../bindings/mpesa-analyzer/internal/store/models";
-import {
-  useTransactionGroups,
-  type TransactionView,
-} from "@/components/transaction-list";
+import { useTransactionGroups } from "@/components/transaction-list";
 
 function amount(cents: number): string {
   return (Math.abs(cents) / 100).toLocaleString("en-KE", {
@@ -250,11 +246,9 @@ function ComingUpRow({
 function HomeCards({
   result,
   transactions,
-  latestDay,
 }: {
   result: analysis.AnalysisResult;
   transactions: parser.Transaction[];
-  latestDay: string;
 }) {
   const navigate = useNavigate();
   const [donutMode, setDonutMode] = useDonutMode();
@@ -532,7 +526,6 @@ export default function Dashboard({
   booting?: boolean;
   onBrowseHistory: () => void;
 }) {
-  const latestDay = maxDayOf(transactions.map((t) => t.date));
 
   const lastGood = useRef<analysis.AnalysisResult | null>(null);
   if (result) lastGood.current = result;
@@ -609,7 +602,7 @@ export default function Dashboard({
 
       {visible && (
         <div aria-busy={updating} className={cn("space-y-3", updating && "opacity-70")}>
-          <HomeCards result={visible} transactions={transactions} latestDay={latestDay} />
+          <HomeCards result={visible} transactions={transactions} />
         </div>
       )}
     </div>

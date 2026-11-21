@@ -13,7 +13,7 @@ import {
 	resolveCategoryIcon,
 	searchCategoryIcons,
 } from "@/components/category-icon";
-import { filterGroups, filterByCustomCategory } from "@/lib/transaction-filter";
+import { filterByCustomCategory } from "@/lib/transaction-filter";
 import { ReleaseNotes } from "@/components/release-notes";
 import { AutomationDisconnectedPanel } from "@/components/automation-gate";
 import {
@@ -119,7 +119,6 @@ import {
 	togglePrivacyMode,
 } from "@/lib/privacy-mode";
 import { dayEndMs, dayStartMs, filterSmsResults } from "@/lib/sms-filter";
-import { BudgetSummaryCard } from "@/components/budget-summary";
 import {
 	budgetPercent,
 	budgetRemainingLabel,
