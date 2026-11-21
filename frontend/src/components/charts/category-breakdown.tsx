@@ -123,7 +123,8 @@ export function CategoryBreakdown({
                     </span>
                     <span className="ml-auto shrink-0 whitespace-nowrap font-medium tabular-nums">
                       {(row.value / 100).toLocaleString("en-KE", {
-                        maximumFractionDigits: 0,
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
                       })}
                     </span>
                   </button>
