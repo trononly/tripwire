@@ -111,6 +111,17 @@ function main() {
 		process.exit(1);
 	}
 
+	// The notes are drafted before the tag is pushed, so the range ends at
+	// HEAD until that tag exists.
+	const end = (() => {
+		try {
+			git("rev-parse", "--verify", `${tag}^{commit}`);
+			return tag;
+		} catch {
+			return "HEAD";
+		}
+	})();
+
 	let prevTag = "";
 	try {
 		prevTag = git(
@@ -119,13 +130,13 @@ function main() {
 			"--abbrev=0",
 			"--match",
 			"tripwire-*",
-			`${tag}^`,
+			end,
 		);
 	} catch {
 		// First release, or a tag with no earlier release tag.
 	}
 
-	const range = prevTag ? `${prevTag}..${tag}` : tag;
+	const range = prevTag ? `${prevTag}..${end}` : end;
 	const log = git("log", "--format=%B", range);
 	const prNumbers = prNumbersFromLog(log);
 
