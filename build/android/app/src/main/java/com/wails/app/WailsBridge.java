@@ -1187,8 +1187,10 @@ public class WailsBridge {
 
     /**
      * The phone's current SIM list as a JSON array of
-     * {subId, slot, simLabel, number}. Name preference: the user's own SIM
-     * name, then the mobile network (carrier) name. Number is "" when it
+     * {subId, slot, simLabel, carrier, number}. simLabel prefers the user's
+     * own SIM name and falls back to the mobile network name; carrier is the
+     * network name alone so the UI can decide whether the carrier is
+     * supported without guessing from a custom label. Number is "" when it
      * cannot be read (often blank on the SIM, or extra number permission
      * missing) - callers show it as subtext only when set. Empty array
      * without phone-state access. Never prompts.
@@ -1226,6 +1228,7 @@ public class WailsBridge {
                     // Some devices blank the carrier instead of returning it.
                 }
                 String label = name != null ? name.toString().trim() : "";
+                String carrierName = carrier != null ? carrier.toString().trim() : "";
                 if (label.isEmpty() && carrier != null) {
                     label = carrier.toString().trim();
                 }
@@ -1243,6 +1246,7 @@ public class WailsBridge {
                         .put("subId", info.getSubscriptionId())
                         .put("slot", info.getSimSlotIndex())
                         .put("simLabel", label)
+                        .put("carrier", carrierName)
                         .put("number", number));
             }
             return out.toString();
@@ -1621,26 +1625,58 @@ public class WailsBridge {
         }
     }
 
-    /**
-     * Open Android's battery-optimization list. The user decides whether to
-     * exempt Tripwire; the app never asks for the exemption itself.
-     */
     public void openBatterySettings() {
         mainHandler.post(() -> {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    Intent intent = new Intent(
-                            Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    activity.startActivity(intent);
+                Intent details = new Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + activity.getPackageName()));
+                details.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(details);
+                return;
+            } catch (Exception e) {
+                Log.e(TAG, "openBatterySettings app info failed", e);
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try {
+                    Intent request = new Intent(
+                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:" + activity.getPackageName()));
+                    request.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    activity.startActivity(request);
                     return;
+                } catch (Exception e) {
+                    Log.e(TAG, "openBatterySettings request failed", e);
                 }
-                openAppSettings();
+            }
+            try {
+                Intent list = new Intent(
+                        Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                list.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(list);
             } catch (Exception e) {
                 Log.e(TAG, "openBatterySettings failed", e);
-                openAppSettings();
             }
         });
+    }
+
+    /**
+     * True when Android already exempts Tripwire from Doze battery
+     * optimization. Read-only; openBatterySettings is the only prompt.
+     */
+    public boolean isIgnoringBatteryOptimizations() {
+        try {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                return true;
+            }
+            PowerManager pm =
+                    (PowerManager) activity.getSystemService(Context.POWER_SERVICE);
+            return pm != null && pm.isIgnoringBatteryOptimizations(
+                    activity.getPackageName());
+        } catch (Exception e) {
+            Log.e(TAG, "isIgnoringBatteryOptimizations failed", e);
+            return false;
+        }
     }
 
     /** Drop the launch splash once the UI has painted (see MainActivity). */

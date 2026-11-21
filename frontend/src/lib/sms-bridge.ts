@@ -17,6 +17,7 @@ interface WailsAndroidBridge {
 	openUssdAutomationSettings?(): void;
 	getAutomationDiagnostics?(): string;
 	openBatterySettings?(): void;
+	isIgnoringBatteryOptimizations?(): boolean;
 	hideSplash?(): void;
 	startUssdQuickEntry?(scriptJson: string, simKey?: string): void;
 	scheduleReminders?(json: string): void;
@@ -221,9 +222,22 @@ export function automationDiagnostics(): AutomationDiagnostics | null {
 	}
 }
 
-/** Open Android's battery-optimization list; the user decides the exemption. */
+/**
+ * Open Tripwire's own App info page, where Battery lives one tap away, then
+ * the system dialog, then the system list. The user decides; nothing is
+ * granted here.
+ */
 export function openBatterySettings(): void {
 	window.wails?.openBatterySettings?.();
+}
+
+/**
+ * True when Android already exempts Tripwire from battery optimization.
+ * Read-only: the only prompt is openBatterySettings. False off-Android.
+ */
+export function isIgnoringBatteryOptimizations(): boolean {
+	if (!isAndroidBridge()) return false;
+	return window.wails?.isIgnoringBatteryOptimizations?.() ?? false;
 }
 
 /** Dismiss the Android launch splash once the UI has painted. */
@@ -297,7 +311,10 @@ export function requestSmsImport(): void {
 export interface SimCard {
 	subId: number;
 	slot: number;
+	/** Display name: the user's own SIM name, else the carrier. */
 	simLabel: string;
+	/** The network's name alone ("Safaricom", "Airtel"), "" when unknown. */
+	carrier: string;
 	/** Phone number, when the SIM reports one. Shown as subtext, never parsed. */
 	number: string;
 }
@@ -325,6 +342,7 @@ export function requestSimCards(): SimCard[] {
 			subId: typeof c.subId === "number" ? c.subId : -1,
 			slot: typeof c.slot === "number" ? c.slot : -1,
 			simLabel: typeof c.simLabel === "string" ? c.simLabel : "",
+			carrier: typeof c.carrier === "string" ? c.carrier : "",
 			number: typeof c.number === "string" ? c.number : "",
 		}));
 	} catch {

@@ -32,11 +32,6 @@ export function AutomationOffPanel() {
 	);
 }
 
-/**
- * The switch is on but Android has not bound the service. This is the state
- * that can be caused by a stale binding, an OEM process limit, or another
- * tool controlling the screen. The copy does not claim a cause.
- */
 export function AutomationDisconnectedPanel({
 	onRetry,
 	compact = false,
@@ -96,10 +91,60 @@ export function AutomationDisconnectedPanel({
 	);
 }
 
-/**
- * Shown after a guided run was cut short. It never claims the payment failed;
- * the user is asked to verify before trying again.
- */
+export function AutomationStatusLine({
+	available,
+	running,
+	onRetry,
+}: {
+	available: boolean;
+	running: boolean;
+	onRetry: () => void;
+}) {
+	if (!isAndroidBridge()) {
+		return (
+			<p className="text-center text-xs text-muted-foreground">
+				Guided M-Pesa payments are available in the Android app.
+			</p>
+		);
+	}
+	if (!available) {
+		return (
+			<p className="flex flex-wrap justify-center gap-x-1.5 text-center text-xs text-muted-foreground">
+				Automation is off, so Tripwire can&rsquo;t fill the menus.
+				<button
+					type="button"
+					onClick={openUssdAutomationSettings}
+					className="font-medium text-foreground underline underline-offset-2"
+				>
+					Open settings
+				</button>
+			</p>
+		);
+	}
+	if (!running) {
+		return (
+			<p className="flex flex-wrap justify-center gap-x-1.5 text-center text-xs text-muted-foreground">
+				Automation is on, but Android hasn&rsquo;t connected it yet.
+				<button
+					type="button"
+					onClick={onRetry}
+					className="font-medium text-foreground underline underline-offset-2"
+				>
+					Retry
+				</button>
+				<button
+					type="button"
+					onClick={openUssdAutomationSettings}
+					className="font-medium text-foreground underline underline-offset-2"
+				>
+					Open settings
+				</button>
+			</p>
+		);
+	}
+	return null;
+}
+
 export function AutomationInterruptedNotice({
 	code,
 	onDismiss,

@@ -112,6 +112,7 @@ export function LipaFavouritesSheet({
 						<Input
 							aria-label="Favourite name"
 							placeholder="Name (optional)"
+							className="rounded-xl"
 							value={name}
 							maxLength={60}
 							onChange={(e) => setName(e.target.value)}
@@ -120,6 +121,7 @@ export function LipaFavouritesSheet({
 							aria-label={kind === "paybill" ? "Paybill number" : "Till number"}
 							inputMode="numeric"
 							placeholder={kind === "paybill" ? "Paybill number" : "Till number"}
+							className="rounded-xl"
 							value={number}
 							maxLength={7}
 							onChange={(e) => setNumber(e.target.value.replace(/\D/g, ""))}
@@ -129,6 +131,7 @@ export function LipaFavouritesSheet({
 							<Input
 								aria-label="Account number"
 								placeholder="Account number"
+								className="rounded-xl"
 								value={account}
 								maxLength={20}
 								onChange={(e) => setAccount(e.target.value)}
@@ -136,7 +139,7 @@ export function LipaFavouritesSheet({
 							/>
 						)}
 						{touched && !valid && (
-							<span className="block text-[11px] text-destructive">
+							<span className="block text-xs text-destructive">
 								{!numberOk
 									? kind === "paybill"
 										? "Enter a valid paybill number (4-7 digits)."
@@ -144,7 +147,11 @@ export function LipaFavouritesSheet({
 									: "Enter an account name or number."}
 							</span>
 						)}
-						<Button type="submit" className="w-full" disabled={saving}>
+						<Button
+							type="submit"
+							className="w-full rounded-xl bg-pay-bg text-pay-ink hover:opacity-90"
+							disabled={saving}
+						>
 							{saving ? (
 								<Loader2 className="size-4 animate-spin" aria-hidden />
 							) : (

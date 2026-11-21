@@ -9,7 +9,7 @@ import { TransactionReceiptDialog } from "@/components/transaction-receipt-dialo
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { BackToPrimaryTabs, PageFallback } from "@/components/router-helpers";
 import { AppHeader } from "@/components/app-header";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -22,12 +22,17 @@ import { useChangelogPrefetch } from "@/hooks/use-changelog";
 import { UpdateDialog } from "@/components/update-dialog";
 import { RestrictedSettingsGuide } from "@/components/restricted-settings-guide";
 import { MobileNav } from "@/components/mobile-nav";
+import { OnboardingTour } from "@/components/onboarding-tour";
+import { useOnboardingState, getDemoId, setDemoId, clearDemoId } from "@/lib/onboarding-state";
+import { SeedDemoStatement } from "../bindings/mpesa-analyzer/parseservice";
+import { demoTransactions } from "@/lib/demo-statement";
 import { useStatements } from "@/hooks/use-statements";
 import { useSmsEngine } from "@/hooks/use-sms-engine";
 import { useSimNames } from "@/hooks/use-sim-names";
 import { useSafeAreaInsets } from "@/hooks/use-safe-area";
 import { useSystemBars } from "@/hooks/use-system-bars";
 import { loadInitialMode, saveMode, type DataMode } from "@/lib/data-mode";
+import { simWallets } from "@/lib/sim-support";
 import { paySimKey } from "@/lib/pay-sim";
 import { hideSplash } from "@/lib/sms-bridge";
 import Transactions from "@/pages/Transactions";
@@ -38,7 +43,6 @@ import Insights from "@/pages/Insights";
 import Categories from "@/pages/Categories";
 import Send from "@/pages/Send";
 import Lipa from "@/pages/Lipa";
-import Withdraw from "@/pages/Withdraw";
 
 /** Runs inside ThemeProvider so it can read the resolved in-app theme. */
 function SystemBarsSync() {
@@ -50,6 +54,37 @@ function App() {
   const [mode, setModeState] = useState<DataMode>(loadInitialMode);
   useSafeAreaInsets();
   const stmts = useStatements();
+  const { done: onboardingDone } = useOnboardingState();
+
+  // First run with an empty store: seed the tour's demo statement so the
+  // walkthrough spotlights populated screens, and activate it for the
+  // session. A user with real data never sees demo anything.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (onboardingDone || !stmts.loaded || stmts.statements.length > 0) {
+      return;
+    }
+    if (seededRef.current) return;
+    seededRef.current = true;
+    SeedDemoStatement(demoTransactions())
+      .then((record) => {
+        if (!record) return;
+        setDemoId(record.id);
+        stmts.importRecord(record);
+      })
+      .catch((e) => console.error("Seeding demo data failed:", e));
+    // seededRef and the store guards make the churn of stmts harmless.
+  }, [onboardingDone, stmts.loaded, stmts.statements.length]);
+
+  // The tour's "Remove demo data": delete the seeded statement, fall back
+  // to the empty app, and never offer it again.
+  const removeDemoStatement = useCallback(async () => {
+    const id = getDemoId();
+    if (!id) return;
+    clearDemoId();
+    await stmts.removeRecord(id);
+  }, [stmts]);
+
   // Live grant state for READ_SMS / RECEIVE_SMS / CALL_PHONE. Refreshes on
   // foreground; every SMS path consults it before doing work.
   const { permissions: smsPerms, refresh: refreshSmsPerms } = useSmsPermissions();
@@ -102,8 +137,15 @@ function App() {
   }, [booting]);
 
   // SMS records are one-per-SIM: the switcher lists them and the active one
-  // feeds SMS mode. Newest import first, same order as History.
+  // feeds SMS mode. Newest import first, same order as History. The phone's
+  // current SIMs are appended so an unsupported carrier is visible even
+  // before it has a wallet.
   const smsMetas = stmts.statements.filter((s) => s.source === "sms");
+  const wallets = simWallets({
+    metas: smsMetas,
+    cards: sims.simCards,
+    numbers: sims.simNumbers,
+  });
   // Guided payments dial the wallet's own SIM: otherwise Android's default
   // call line, or its "Call with" chooser, decides which wallet's *334# menu
   // opens. Null (statements mode) lets the bridge pick a line.
@@ -186,9 +228,8 @@ function App() {
               statements={stmts.statements}
               mode={mode}
               isAndroid={sms.isAndroid}
-              smsMetas={smsMetas}
+              wallets={wallets}
               smsRecordId={sms.smsRecordId}
-              simNumbers={sims.simNumbers}
               historyOpen={historyOpen}
               activeId={stmts.activeId}
               setHistoryOpen={setHistoryOpen}
@@ -221,12 +262,7 @@ function App() {
                 />
                 <Route
                   path="/transactions"
-                  element={
-                    <Transactions
-                      transactions={txs}
-                      onRefresh={() => sms.refreshSmsNow()}
-                    />
-                  }
+                  element={<Transactions transactions={txs} />}
                 />
                 <Route
                   path="/sms"
@@ -267,10 +303,6 @@ function App() {
                   element={<Lipa simKey={paySim} />}
                 />
                 <Route
-                  path="/withdraw"
-                  element={<Withdraw />}
-                />
-                <Route
                   path="/settings"
                   element={
                     <Settings
@@ -283,7 +315,7 @@ function App() {
                       smsTxCount={sms.smsTxs.length}
                       activeSmsId={sms.smsRecordId}
                       onSwitchSim={sms.handleSwitchSim}
-                      numbers={sims.simNumbers}
+                      wallets={wallets}
                       onRefreshSimNames={sims.refreshSimNames}
                       onRequestSimNames={sims.requestSimNamesGrant}
                       onTestArrival={sms.testArrivalAnnouncement}
@@ -295,6 +327,8 @@ function App() {
             </main>
             <MobileNav />          </SidebarInset>
         </SidebarProvider>
+
+        <OnboardingTour onRemoveDemo={removeDemoStatement} />
 
         <ImportStatementDialog
           open={importOpen}

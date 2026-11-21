@@ -23,7 +23,7 @@ export function OptionButton({
       type={type}
       aria-pressed={selected}
       className={cn(
-        "rounded-none border px-3 py-2.5 text-sm transition-colors",
+        "rounded-[10px] border px-3 py-2.5 text-sm transition-colors",
         selected
           ? "border-primary/50 bg-primary/10 font-medium text-foreground"
           : "border-border text-muted-foreground hover:bg-muted/60",

@@ -1,16 +1,7 @@
 import { useTheme } from "next-themes";
 import { Link } from "react-router-dom";
-import {
-  ArrowRight,
-  CupSoda,
-  FileText,
-  Monitor,
-  Moon,
-  MessageSquareText,
-  Smartphone,
-  Sun,
-} from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ArrowRight, Smartphone } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   HAPTICS_KEY,
@@ -26,12 +17,22 @@ import {
   useAutoConfirmEnabled,
 } from "@/lib/payment-settings";
 import { cn } from "@/lib/utils";
-import { simName } from "@/components/sim-switcher";
-import { useKonamiCode } from "@/hooks/use-konami-code";
+import {
+  isSelectableWallet,
+  walletSubtext,
+  type SimWallet,
+} from "@/lib/sim-support";
+import { useDevMode } from "@/hooks/use-konami-code";
+import { restart as restartOnboarding } from "@/lib/onboarding-state";
 import {
   drainPendingSms,
   hasPhoneStatePermission,
   isAndroidBridge,
+  isIgnoringBatteryOptimizations,
+  openAppSettings,
+  openBatterySettings,
+  openUssdAutomationSettings,
+  ussdAutomationEnabled,
   type SmsPermissions,
 } from "@/lib/sms-bridge";
 import { SODA_URL, openExternalUrl } from "@/lib/external-url";
@@ -39,7 +40,6 @@ import type * as store from "../../bindings/mpesa-analyzer/internal/store/models
 import type { Updater } from "@/hooks/use-updater";
 import { ChangelogButton } from "@/components/changelog-dialog";
 import { BackupSetting } from "@/components/backup-setting";
-import { PageHeader } from "@/components/page-header";
 import { AutomationSettingsCard } from "@/components/automation-settings";
 import { ResetData } from "../../bindings/mpesa-analyzer/parseservice";
 import {
@@ -54,24 +54,47 @@ import { OptionButton } from "@/components/ui/option-button";
 import { Switch } from "@/components/ui/switch";
 
 const themes = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "system", label: "System" },
 ] as const;
 
-function ThemeSelector() {
+function SettingRow({
+  label,
+  sub,
+  children,
+}: {
+  label: string;
+  sub?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3">
+      <div className="min-w-0">
+        <p className="text-sm">{label}</p>
+        {sub && (
+          <p className="mt-0.5 text-[12px] text-muted-foreground">{sub}</p>
+        )}
+      </div>
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ThemeSegment() {
   const { theme, setTheme } = useTheme();
 
   return (
-    <div className="flex gap-2">
-      {themes.map(({ value, label, icon: Icon }) => (
+    <div className="inline-flex overflow-hidden rounded-[10px] border border-border">
+      {themes.map(({ value, label }) => (
         <OptionButton
           key={value}
           selected={theme === value}
           onClick={() => setTheme(value)}
-          className="flex flex-1 items-center justify-center gap-2"
+          className="rounded-none border-0 px-2.5 py-1.5 text-[13px]"
         >
-          <Icon className="size-4" />
           {label}
         </OptionButton>
       ))}
@@ -81,7 +104,7 @@ function ThemeSelector() {
 
 /** Android only: which dataset the analysis runs over. Statements show the
  * PDF history; SMS shows the phone's imported M-Pesa messages. */
-function ModeSelector({
+function ModeSegment({
   mode,
   onModeChange,
 }: {
@@ -89,72 +112,135 @@ function ModeSelector({
   onModeChange: (mode: "statements" | "sms") => void;
 }) {
   const options = [
-    {
-      value: "statements" as const,
-      label: "Statements",
-      icon: FileText,
-    },
-    {
-      value: "sms" as const,
-      label: "SMS",
-      icon: MessageSquareText,
-    },
+    { value: "statements" as const, label: "Statements" },
+    { value: "sms" as const, label: "SMS" },
   ];
 
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {options.map(({ value, label, icon: Icon }) => (
+    <div className="inline-flex overflow-hidden rounded-[10px] border border-border">
+      {options.map(({ value, label }) => (
         <OptionButton
           key={value}
           selected={mode === value}
           onClick={() => onModeChange(value)}
-          className="flex min-h-14 min-w-0 items-center justify-start gap-3 p-3 text-left"
+          className="rounded-none border-0 px-2.5 py-1.5 text-[13px]"
         >
-          <Icon className="size-5 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 text-sm font-medium">{label}</span>
+          {label}
         </OptionButton>
       ))}
     </div>
   );
 }
 
-function MotionSettings() {
+function MotionRows() {
   const reduceMotion = useReduceMotionEnabled();
   const haptics = useHapticsEnabled();
   const toggle = (on: boolean, key: string, label: string) => (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-sm">{label}</span>
-      <Switch
-        checked={on}
-        onCheckedChange={(next) => setSetting(key, next)}
-        label={label}
-      />
-    </div>
+    <Switch
+      checked={on}
+      onCheckedChange={(next) => setSetting(key, next)}
+      label={label}
+    />
   );
   return (
-    <div className="space-y-2">
-      {toggle(reduceMotion, REDUCE_MOTION_KEY, "Reduce motion")}
-      {toggle(haptics, HAPTICS_KEY, "Haptics")}
-    </div>
+    <>
+      <SettingRow label="Reduce motion" sub="Stops pulses and slides">
+        {toggle(reduceMotion, REDUCE_MOTION_KEY, "Reduce motion")}
+      </SettingRow>
+      <SettingRow label="Haptic feedback">
+        {toggle(haptics, HAPTICS_KEY, "Haptic feedback")}
+      </SettingRow>
+    </>
   );
 }
 
 /** Privacy Mode: blurs every balance figure behind a tap-to-reveal veil. */
-function PrivacySetting() {
+function PrivacyRow() {
   const on = usePrivacyMode();
   return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm">Privacy Mode</span>
-        <Switch
-          checked={on}
-          onCheckedChange={(next) => setPrivacyMode(next)}
-          label="Privacy Mode"
-        />
-      </div>
-      <p className="text-[12px] text-muted-foreground">
-        Blur balances until you tap them.
-      </p>
+    <SettingRow label="Privacy mode" sub="Blurs balances until you tap them.">
+      <Switch
+        checked={on}
+        onCheckedChange={(next) => setPrivacyMode(next)}
+        label="Privacy mode"
+      />
+    </SettingRow>
+  );
+}
+
+/**
+ * Debug: fire each system-settings jump and show what the device reports.
+ * Both settings can only change while the app is in the background, so the
+ * rows re-read on return.
+ */
+function SettingsJumps() {
+  const [batteryExempt, setBatteryExempt] = useState(
+    isIgnoringBatteryOptimizations,
+  );
+  const [accessibilityOn, setAccessibilityOn] = useState(
+    ussdAutomationEnabled,
+  );
+
+  useEffect(() => {
+    const recheck = () => {
+      setBatteryExempt(isIgnoringBatteryOptimizations());
+      setAccessibilityOn(ussdAutomationEnabled());
+    };
+    window.addEventListener("focus", recheck);
+    document.addEventListener("visibilitychange", recheck);
+    return () => {
+      window.removeEventListener("focus", recheck);
+      document.removeEventListener("visibilitychange", recheck);
+    };
+  }, []);
+
+  const rows: {
+    label: string;
+    state?: string;
+    opened: string;
+    open: () => void;
+  }[] = [
+    {
+      label: "Battery exemption",
+      state: batteryExempt ? "exempt" : "not exempt",
+      opened: "Battery settings opened",
+      open: openBatterySettings,
+    },
+    {
+      label: "Accessibility service",
+      state: accessibilityOn ? "enabled" : "off",
+      opened: "Accessibility settings opened",
+      open: openUssdAutomationSettings,
+    },
+    {
+      label: "App info",
+      opened: "App info opened",
+      open: openAppSettings,
+    },
+  ];
+
+  return (
+    <div className="divide-y divide-border">
+      {rows.map(({ label, state, opened, open }) => (
+        <SettingRow key={label} label={label}>
+          {state && (
+            <span className="font-mono text-xs text-muted-foreground">
+              {state}
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label={`Test ${label}`}
+            onClick={() => {
+              open();
+              toast.success(opened);
+            }}
+          >
+            Test
+          </Button>
+        </SettingRow>
+      ))}
     </div>
   );
 }
@@ -169,7 +255,7 @@ export default function Settings({
   smsTxCount,
   activeSmsId,
   onSwitchSim,
-  numbers,
+  wallets,
   onRefreshSimNames,
   onRequestSimNames,
   onTestArrival,
@@ -186,8 +272,8 @@ export default function Settings({
   activeSmsId: string | null;
   /** Switch SMS mode to another SIM's wallet. */
   onSwitchSim: (meta: store.StatementMeta) => void;
-  /** Phone numbers by SIM key, shown as subtext when set. */
-  numbers: Record<string, string>;
+  /** One row per stored wallet or SIM the phone reports. */
+  wallets: SimWallet[];
   /** Re-resolve carrier names when phone-state access is granted. */
   onRefreshSimNames: () => void;
   /** Ask for phone-state access (SIM names/numbers). Tap-only. */
@@ -196,18 +282,8 @@ export default function Settings({
   onTestArrival: () => void;
   updater: Updater;
 }) {
-  const debug = useKonamiCode();
+  const debug = useDevMode();
   const autoConfirm = useAutoConfirmEnabled();
-  const toastedRef = useRef(debug.unlocked);
-  useEffect(() => {
-    if (debug.unlocked && !toastedRef.current) {
-      toastedRef.current = true;
-      toast.success("Debug unlocked");
-    } else if (!debug.unlocked && toastedRef.current) {
-      toastedRef.current = false;
-      toast("Debug hidden");
-    }
-  }, [debug.unlocked]);
   const smsRecords = statements.filter((s) => s.source === "sms");
   const statementRecords = statements.filter((s) => s.source !== "sms");
   // Opening Settings re-resolves carrier names for wallets imported
@@ -232,98 +308,145 @@ export default function Settings({
   const bridge = isAndroidBridge();
   const grantLabel = (granted: boolean) =>
     !bridge ? "n/a" : granted ? "granted" : "not granted";
+  const updatesSub = `${updater.current ? `Tripwire ${updater.current} installed` : "Tripwire"}${
+    updater.status === "checking"
+      ? " - checking…"
+      : updater.status === "available" && updater.release
+        ? ` - ${updater.release.version} ready`
+        : updater.status === "up-to-date"
+          ? " - you're up to date"
+          : ""
+  }`;
   return (
     <div className="space-y-6">
-      <div onClick={debug.tap} className="select-none" aria-hidden="true" />
-      <PageHeader title="Settings" />
-
       <Card>
-        <CardHeader>
-          <CardTitle>Preferences</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <ThemeSelector />
-          <MotionSettings />
-          <PrivacySetting />
-          {isAndroid && (
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm">Auto-confirm after PIN</span>
+        <CardContent className="divide-y divide-border">
+          <SettingRow label="Appearance">
+            <ThemeSegment />
+          </SettingRow>
+          <MotionRows />
+          <PrivacyRow />
+        </CardContent>
+      </Card>
+
+      {isAndroid && (
+        <Card>
+          <CardContent className="divide-y divide-border">
+            <SettingRow
+              label="Data source"
+              sub="PDF statements, or this phone's M-Pesa inbox."
+            >
+              <ModeSegment mode={mode} onModeChange={onModeChange} />
+            </SettingRow>
+            {debug.unlocked && (
+              <SettingRow label="SMS import details">
+                <Link
+                  to="/sms"
+                  className="flex items-center gap-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label="Open SMS import details"
+                >
+                  Details
+                  <ArrowRight className="size-3.5" aria-hidden />
+                </Link>
+              </SettingRow>
+            )}
+            <SettingRow label="Auto-confirm after PIN">
               <Switch
                 checked={autoConfirm}
                 onCheckedChange={setAutoConfirmEnabled}
                 label="Auto-confirm after PIN"
               />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {isAndroid && <AutomationSettingsCard />}
-
-      {isAndroid && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Data source</CardTitle>
-            <CardDescription>
-              PDF statements, or this phone&rsquo;s M-Pesa inbox.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <ModeSelector mode={mode} onModeChange={onModeChange} />
-            <Button asChild variant="outline" size="sm">
-              <Link to="/sms">
-                <MessageSquareText />
-                SMS import details
-                <ArrowRight />
-              </Link>
-            </Button>
+            </SettingRow>
+            <SettingRow label="App updates" sub={updatesSub}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => updater.check(true)}
+                disabled={updater.status === "checking"}
+              >
+                {updater.status === "checking"
+                  ? "Checking…"
+                  : "Check for updates"}
+              </Button>
+              <ChangelogButton />
+              {updater.status === "available" && updater.release && (
+                <Button size="sm" onClick={updater.reopen}>
+                  View update
+                </Button>
+              )}
+            </SettingRow>
+            {updater.status === "error" && updater.error && (
+              <p className="py-3 text-sm text-destructive">{updater.error}</p>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {isAndroid && smsRecords.length > 0 && (
+      {isAndroid && <AutomationSettingsCard />}
+
+      <BackupSetting />
+
+      {isAndroid && wallets.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Wallets</CardTitle>
             <CardDescription>
               One wallet per SIM. Switching keeps balances and cashflow from
-              different wallets apart.
+              different wallets apart. Carriers Tripwire cannot analyze are
+              listed but cannot be selected.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {smsRecords.map((sim) => {
-              const isActive = sim.id === activeSmsId;
-              const number = numbers[sim.simId ?? ""];
+            {wallets.map((wallet) => {
+              const isActive = wallet.meta?.id === activeSmsId;
+              const selectable = isSelectableWallet(wallet);
+              const note = walletSubtext(wallet);
               return (
                 <button
-                  key={sim.id}
+                  key={wallet.key}
                   type="button"
                   aria-pressed={isActive}
-                  onClick={() => onSwitchSim(sim)}
+                  disabled={!selectable}
+                  onClick={() => {
+                    if (!wallet.meta) return;
+                    onSwitchSim(wallet.meta);
+                  }}
                   className={cn(
-                    "flex w-full min-w-0 items-center gap-3 rounded-none border p-3 text-left transition-colors hover:bg-muted/50",
+                    "flex w-full min-w-0 items-center gap-3 rounded-[10px] border p-3 text-left transition-colors",
+                    selectable && "hover:bg-muted/50",
                     isActive && "border-primary/50 bg-primary/10",
+                    !selectable && "text-muted-foreground",
                   )}
                 >
                   <Smartphone
                     className={cn(
                       "size-5 shrink-0",
-                      isActive ? "text-foreground" : "text-muted-foreground",
+                      isActive
+                        ? "text-foreground"
+                        : "text-muted-foreground",
+                      !selectable && "opacity-60",
                     )}
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
-                      {simName(sim)}
+                    <span
+                      className={cn(
+                        "block truncate text-sm font-medium",
+                        !selectable && "opacity-60",
+                      )}
+                    >
+                      {wallet.name}
                     </span>
-                    {number && (
+                    {note && (
                       <span className="block truncate text-[12px] text-muted-foreground tabular-nums">
-                        {number}
+                        {note}
                       </span>
                     )}
                   </span>
-                  <span className="shrink-0 text-[12px] text-muted-foreground tabular-nums">
-                    {sim.txCount.toLocaleString()} txs
-                  </span>
+                  {selectable && wallet.txCount !== null && (
+                    <span className="shrink-0 text-[12px] text-muted-foreground tabular-nums">
+                      {wallet.txCount.toLocaleString()} txs
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -342,65 +465,7 @@ export default function Settings({
         </Card>
       )}
 
-      <BackupSetting />
-
-      {isAndroid && (
-        <Card>
-          <CardHeader>
-            <CardTitle>App updates</CardTitle>
-            <CardDescription>
-              {updater.current
-                ? `Tripwire ${updater.current} installed`
-                : "Tripwire"}
-              {updater.status === "checking"
-                ? " - checking…"
-                : updater.status === "available" && updater.release
-                  ? ` - ${updater.release.version} ready`
-                  : updater.status === "up-to-date"
-                    ? " - you're up to date"
-                    : ""}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {updater.status === "error" && updater.error && (
-              <p className="text-sm text-destructive">{updater.error}</p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => updater.check(true)}
-                disabled={updater.status === "checking"}
-              >
-                {updater.status === "checking"
-                  ? "Checking…"
-                  : "Check for updates"}
-              </Button>
-              <ChangelogButton />
-              {updater.status === "available" && updater.release && (
-                <Button size="sm" onClick={updater.reopen}>
-                  View update
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Support</CardTitle>
-          <CardDescription>
-            Tripwire is free and open source. Tips keep it that way.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" onClick={() => openExternalUrl(SODA_URL)}>
-            <CupSoda />
-            Buy me a soda
-          </Button>
-        </CardContent>
-      </Card>
+      <ResetSetting />
 
       {debug.unlocked && (
         <Card className="border-dashed">
@@ -457,11 +522,43 @@ export default function Settings({
                 Test arrival announcement
               </Button>
             )}
+            <div className="mt-4 border-t border-border">
+              <SettingRow
+                label="Restart onboarding session"
+                sub="Replays the tour from the first step."
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={restartOnboarding}
+                >
+                  Restart
+                </Button>
+              </SettingRow>
+            </div>
+            {isAndroid && (
+              <div className="mt-4 border-t border-border">
+                <p className="pt-3 text-[12px] font-medium text-muted-foreground">
+                  Settings jumps
+                </p>
+                <SettingsJumps />
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
 
-      <ResetSetting />
+      <p className="px-1 text-[12px] leading-relaxed text-muted-foreground">
+        Tripwire is free and open source, and if it saves you money you can{" "}
+        <button
+          type="button"
+          onClick={() => openExternalUrl(SODA_URL)}
+          className="underline underline-offset-2 transition-colors hover:text-foreground"
+        >
+          buy me a soda
+        </button>
+        .
+      </p>
     </div>
   );
 }

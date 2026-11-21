@@ -550,6 +550,27 @@ func (p *ParseService) SaveSmsImport(txs []parser.Transaction) (*store.Statement
 	return &rec, nil
 }
 
+// SeedDemoStatement persists the onboarding tour's demo dataset as a plain
+// statement record, the kind every statements-mode screen reads. The
+// frontend owns the dataset and deletes the record when the tour ends, so
+// no demo row can outlive the walkthrough unless the user keeps it.
+func (p *ParseService) SeedDemoStatement(txs []parser.Transaction) (*store.StatementRecord, error) {
+	if len(txs) == 0 {
+		return nil, fmt.Errorf("no demo transactions to save")
+	}
+	rec := newSmsRecord(txs, "", "")
+	rec.Source = ""
+	rec.Name = "Demo · " + rec.Name
+	s, err := p.statements()
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Add(rec); err != nil {
+		return nil, err
+	}
+	return &rec, nil
+}
+
 // newSmsRecord wraps parsed SMS transactions as a store record. Shared by
 // the manual save path and the refresh path. simID/simLabel identify the
 // source SIM; the manual path leaves them empty.

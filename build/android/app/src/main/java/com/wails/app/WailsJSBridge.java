@@ -302,7 +302,8 @@ public class WailsJSBridge {
     }
 
     /**
-     * Current SIM list as a JSON array of {subId, slot, simLabel, number}.
+     * Current SIM list as a JSON array of
+     * {subId, slot, simLabel, carrier, number}.
      * Called from JavaScript: wails.getSimCards()
      */
     @JavascriptInterface
@@ -357,13 +358,22 @@ public class WailsJSBridge {
     }
 
     /**
-     * Open Android's battery-optimization list; the user chooses whether to
-     * exempt Tripwire.
+     * Open the app's own App info page (the package name is in the URI),
+     * falling back to the system exemption dialog then the system list.
      * Called from JavaScript: wails.openBatterySettings()
      */
     @JavascriptInterface
     public void openBatterySettings() {
         executor.execute(bridge::openBatterySettings);
+    }
+
+    /**
+     * True when Android already exempts Tripwire from battery optimization.
+     * Called from JavaScript: wails.isIgnoringBatteryOptimizations()
+     */
+    @JavascriptInterface
+    public boolean isIgnoringBatteryOptimizations() {
+        return bridge.isIgnoringBatteryOptimizations();
     }
 
     /**

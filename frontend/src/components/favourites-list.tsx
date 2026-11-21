@@ -223,7 +223,7 @@ export function FavouritesList({
 						type="button"
 						disabled={drag !== null || savingOrder}
 						onClick={() => (reordering ? stopReordering() : startReordering())}
-						className="text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+						className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
 					>
 						{reordering ? "Done" : "Reorder"}
 					</button>
@@ -231,15 +231,15 @@ export function FavouritesList({
 			</div>
 
 			{loading ? (
-				<p className="rounded-none border p-4 text-center text-xs text-muted-foreground">
+				<p className="rounded-xl border p-4 text-center text-xs text-muted-foreground">
 					Loading…
 				</p>
 			) : order.length === 0 ? (
-				<p className="rounded-none border border-dashed p-4 text-center text-xs text-muted-foreground">
+				<p className="rounded-xl border border-dashed p-4 text-center text-xs text-muted-foreground">
 					No favourites yet
 				</p>
 			) : (
-				<ul ref={listRef} className="divide-y rounded-none border">
+				<ul ref={listRef} className="divide-y rounded-xl border">
 					{order.map((item, index) => {
 						const dragging = drag?.index === index;
 						return (
@@ -253,7 +253,7 @@ export function FavouritesList({
 								)}
 							>
 								<span
-									className="flex size-9 shrink-0 items-center justify-center rounded-none bg-neutral-200 text-xs font-normal text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400"
+									className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-accent text-xs font-normal text-accent-foreground"
 									aria-hidden
 								>
 									{favouriteInitials(item.name)}
@@ -266,7 +266,7 @@ export function FavouritesList({
 												{item.name}
 											</span>
 											{item.detail && (
-												<span className="block truncate text-[11px] text-muted-foreground">
+												<span className="block truncate text-xs text-muted-foreground">
 													{item.detail}
 												</span>
 											)}
@@ -301,6 +301,7 @@ export function FavouritesList({
 									<>
 										<Input
 											aria-label={`Rename ${item.name}`}
+											className="rounded-lg"
 											value={editName}
 											maxLength={60}
 											autoFocus
@@ -338,7 +339,7 @@ export function FavouritesList({
 											<span className="block truncate text-sm font-medium">
 												{item.name}
 											</span>
-											<span className="text-[11px] text-muted-foreground">
+											<span className="text-xs text-muted-foreground">
 												Remove this favourite?
 											</span>
 										</span>
@@ -368,7 +369,7 @@ export function FavouritesList({
 												{item.name}
 											</span>
 											{item.detail && (
-												<span className="block truncate text-[11px] text-muted-foreground">
+												<span className="block truncate text-xs text-muted-foreground">
 													{item.detail}
 												</span>
 											)}

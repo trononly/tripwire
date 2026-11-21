@@ -10,11 +10,6 @@ export interface AmountFieldProps {
 	error?: string;
 }
 
-/**
- * The page's visual anchor: a large grouped amount with the currency as a
- * quiet prefix. Same hierarchy as the dashboard totals, so the number is
- * readable at a glance instead of being one small field among many.
- */
 export function AmountField({
 	id,
 	value,
@@ -32,11 +27,13 @@ export function AmountField({
 			</label>
 			<div
 				className={cn(
-					"flex items-baseline gap-2 border border-input bg-muted/30 px-3 py-2.5 transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/50",
+					"flex items-baseline gap-2 rounded-xl border border-input bg-card px-4 py-3 transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/50",
 					invalid && "border-destructive",
 				)}
 			>
-				<span className="text-sm font-medium text-muted-foreground">KES</span>
+				<span className="text-sm font-medium text-muted-foreground">
+					KES
+				</span>
 				<input
 					id={id}
 					inputMode="numeric"
@@ -45,8 +42,11 @@ export function AmountField({
 					value={formatAmountInput(value)}
 					onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
 					aria-invalid={invalid}
-					className="min-w-0 flex-1 bg-transparent text-3xl font-semibold tracking-tight tabular-nums outline-none placeholder:text-muted-foreground/40"
+					className="min-w-0 flex-1 bg-transparent text-[40px] font-semibold leading-none tracking-[-0.02em] tabular-nums outline-none placeholder:text-muted-foreground/30"
 				/>
+				<span className="text-xl font-medium text-muted-foreground" aria-hidden>
+					.00
+				</span>
 			</div>
 			{error && <span className="text-xs text-destructive">{error}</span>}
 		</div>

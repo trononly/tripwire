@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { Events } from "@wailsio/runtime";
 
 import { ListStatements, RefreshSimLabels } from "../../bindings/mpesa-analyzer/parseservice";
@@ -8,6 +8,7 @@ import {
 	isAndroidBridge,
 	requestPhoneStatePermission,
 	requestSimCards,
+	type SimCard,
 } from "@/lib/sms-bridge";
 
 /**
@@ -40,6 +41,26 @@ export function useSimNames(deps: {
 		return {};
 	});
 
+	// The phone's current SIMs, carrier included. Empty without phone-state
+	// access, and refreshed whenever the app returns to the foreground so a
+	// removed SIM does not keep a stale wallet in the list.
+	const [simCards, setSimCards] = useState<SimCard[]>([]);
+
+	const syncSimCards = useCallback((): SimCard[] => {
+		const cards = isAndroidBridge() ? requestSimCards() : [];
+		setSimCards(cards);
+		return cards;
+	}, []);
+
+	useEffect(() => {
+		syncSimCards();
+		const onVisible = () => {
+			if (document.visibilityState === "visible") syncSimCards();
+		};
+		document.addEventListener("visibilitychange", onVisible);
+		return () => document.removeEventListener("visibilitychange", onVisible);
+	}, [syncSimCards]);
+
 	// Numbers ride under both keys (slot and subscription id) so a wallet
 	// shows its number however it was keyed when imported.
 	function rememberSimNumbers(
@@ -69,8 +90,12 @@ export function useSimNames(deps: {
 	// access - renaming fallbacks and moving subscription-keyed records
 	// onto their slot key.
 	function refreshSimNames() {
-		if (!isAndroidBridge() || !hasPhoneStatePermission()) return;
-		const cards = requestSimCards();
+		if (!isAndroidBridge()) {
+			setSimCards([]);
+			return;
+		}
+		const cards = syncSimCards();
+		if (!hasPhoneStatePermission()) return;
 		rememberSimNumbers(cards);
 		const named = cards.filter((c) => c.simLabel.trim() !== "");
 		if (named.length === 0) return;
@@ -99,5 +124,5 @@ export function useSimNames(deps: {
 		requestPhoneStatePermission();
 	}
 
-	return { simNumbers, refreshSimNames, requestSimNamesGrant };
+	return { simCards, simNumbers, refreshSimNames, requestSimNamesGrant };
 }

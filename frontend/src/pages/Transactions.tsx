@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowDown, ArrowUp, FileUp, Loader2, SlidersHorizontal, Tags, X } from "lucide-react";
+import { ArrowUp, FileUp, SlidersHorizontal, X } from "lucide-react";
 import {
   TransactionList,
   useTransactionGroups,
@@ -22,7 +22,6 @@ import { cn } from "@/lib/utils";
 import { filterGroups, filterByCustomCategory } from "@/lib/transaction-filter";
 import { vibrateIfEnabled } from "@/lib/motion-settings";
 import { typeStyle } from "@/lib/transaction-types";
-import { PageHeader } from "@/components/page-header";
 import { useCategories } from "@/hooks/use-categories";
 import type * as parser from "../../bindings/mpesa-analyzer/internal/parser/models";
 
@@ -273,21 +272,75 @@ function TxDataTable({ txs }: { txs: parser.Transaction[] }) {
     [previewGroups],
   );
 
-  const activeFilters =
-    (categoryFilter !== "all" ? 1 : 0) +
-    (customFilter !== "all" ? 1 : 0) +
-    (directionFilter !== "all" ? 1 : 0) +
-    (fromDate ? 1 : 0) +
-    (toDate ? 1 : 0);
-  const shownCount = useMemo(
-    () => filteredGroups.reduce((n, g) => n + g.txs.length, 0),
-    [filteredGroups],
-  );
-  const totalCount = useMemo(
-    () => groups.reduce((n, g) => n + g.txs.length, 0),
-    [groups],
-  );
-  const isFiltered = globalFilter.trim() !== "" || activeFilters > 0;
+  const activeFilterChips = useMemo(() => {
+    const chips: { key: string; label: string; onClear: () => void }[] = [];
+    const clearParam = (name: string) =>
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete(name);
+          return next;
+        },
+        { replace: true },
+      );
+    if (categoryFilter !== "all") {
+      chips.push({
+        key: "category",
+        label: categoryFilter,
+        onClear: () => {
+          setCategoryFilter("all");
+          setDraftCategory("all");
+          clearParam("category");
+        },
+      });
+    }
+    if (customFilter !== "all") {
+      chips.push({
+        key: "custom",
+        label:
+          customFilter === "none"
+            ? "Uncategorized"
+            : (userCategories.find((c) => c.id === customFilter)?.name ??
+              "Custom"),
+        onClear: () => {
+          setCustomFilter("all");
+          setDraftCustom("all");
+          clearParam("custom");
+        },
+      });
+    }
+    if (directionFilter !== "all") {
+      chips.push({
+        key: "direction",
+        label: directionFilter === "in" ? "Money in" : "Money out",
+        onClear: () => setDirectionFilter("all"),
+      });
+    }
+    if (fromDate || toDate) {
+      chips.push({
+        key: "dates",
+        label:
+          fromDate && toDate
+            ? `${fromDate} – ${toDate}`
+            : fromDate
+              ? `From ${fromDate}`
+              : `To ${toDate}`,
+        onClear: () => {
+          setFromDate("");
+          setToDate("");
+        },
+      });
+    }
+    return chips;
+  }, [
+    categoryFilter,
+    customFilter,
+    directionFilter,
+    fromDate,
+    toDate,
+    userCategories,
+    setSearchParams,
+  ]);
 
   const applyDraft = () => {
     vibrateIfEnabled(12);
@@ -365,34 +418,37 @@ function TxDataTable({ txs }: { txs: parser.Transaction[] }) {
             )}
           </div>
           <Button
-            asChild
             variant="outline"
-            size="icon"
-            className="size-8 shrink-0"
-          >
-            <Link to="/categories" aria-label="Manage categories">
-              <Tags className="size-4" />
-            </Link>
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="Filters"
+            size="sm"
             onClick={() => setFiltersOpen(true)}
-            className="relative size-8 shrink-0"
+            className="shrink-0"
           >
             <SlidersHorizontal className="size-4" />
-            {activeFilters > 0 && (
-              <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-                {activeFilters}
-              </span>
-            )}
+            Filters
           </Button>
         </div>
+        {activeFilterChips.length > 0 && (
+          <div
+            className="flex flex-wrap items-center gap-1.5 pt-1.5"
+            aria-label="Active filters"
+          >
+            {activeFilterChips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={chip.onClear}
+                className="flex items-center gap-1 rounded-full border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                {chip.label}
+                <X className="size-3" />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {/* Filter sheet: chip toggles + presets + sticky count CTA. */}
       <Drawer open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <DrawerContent className="max-h-[92dvh]">
+        <DrawerContent>
           <DrawerHeader className="text-left">
             <div className="flex items-center justify-between gap-2">
               <DrawerTitle>Filter transactions</DrawerTitle>
@@ -414,11 +470,12 @@ function TxDataTable({ txs }: { txs: parser.Transaction[] }) {
               </Button>
             </div>
           </DrawerHeader>
-          <div className="space-y-5 overflow-y-auto p-4">
+          {/* No inner scroller: content wraps and fits, so the sheet's own
+              drag-to-dismiss never fights a nested overflow. */}
+          <div className="space-y-5 p-4">
             <div className="space-y-2">
               <p className="text-sm font-medium">Category</p>
-              <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <div className="flex flex-nowrap gap-2 pb-1" role="group" aria-label="Category">
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Category">
                 <button
                   type="button"
                   aria-pressed={draftCategory === "all"}
@@ -444,55 +501,52 @@ function TxDataTable({ txs }: { txs: parser.Transaction[] }) {
                     {c}
                   </button>
                 ))}
-                </div>
               </div>
             </div>
             {userCategories.length > 0 && (
               <div className="space-y-2">
                 <p className="text-sm font-medium">My categories</p>
-                <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <div className="flex flex-nowrap gap-2 pb-1" role="group" aria-label="My categories">
+                <div className="flex flex-wrap gap-2" role="group" aria-label="My categories">
+                  <button
+                    type="button"
+                    aria-pressed={draftCustom === "all"}
+                    onClick={() => {
+                      vibrateIfEnabled(8);
+                      setDraftCustom("all");
+                    }}
+                    className={chipClass(draftCustom === "all")}
+                  >
+                    All
+                  </button>
+                  {userCategories.map((c) => (
                     <button
+                      key={c.id}
                       type="button"
-                      aria-pressed={draftCustom === "all"}
+                      aria-pressed={draftCustom === c.id}
                       onClick={() => {
                         vibrateIfEnabled(8);
-                        setDraftCustom("all");
+                        setDraftCustom(draftCustom === c.id ? "all" : c.id);
                       }}
-                      className={chipClass(draftCustom === "all")}
+                      className={cn(
+                        chipClass(draftCustom === c.id),
+                        "inline-flex items-center gap-1.5",
+                      )}
                     >
-                      All
+                      <CategoryIcon icon={c.icon} className="size-3.5" />
+                      {c.name}
                     </button>
-                    {userCategories.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        aria-pressed={draftCustom === c.id}
-                        onClick={() => {
-                          vibrateIfEnabled(8);
-                          setDraftCustom(draftCustom === c.id ? "all" : c.id);
-                        }}
-                        className={cn(
-                          chipClass(draftCustom === c.id),
-                          "inline-flex items-center gap-1.5",
-                        )}
-                      >
-                        <CategoryIcon icon={c.icon} className="size-3.5" />
-                        {c.name}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      aria-pressed={draftCustom === "none"}
-                      onClick={() => {
-                        vibrateIfEnabled(8);
-                        setDraftCustom(draftCustom === "none" ? "all" : "none");
-                      }}
-                      className={chipClass(draftCustom === "none")}
-                    >
-                      Uncategorized
-                    </button>
-                  </div>
+                  ))}
+                  <button
+                    type="button"
+                    aria-pressed={draftCustom === "none"}
+                    onClick={() => {
+                      vibrateIfEnabled(8);
+                      setDraftCustom(draftCustom === "none" ? "all" : "none");
+                    }}
+                    className={chipClass(draftCustom === "none")}
+                  >
+                    Uncategorized
+                  </button>
                 </div>
               </div>
             )}
@@ -571,11 +625,6 @@ function TxDataTable({ txs }: { txs: parser.Transaction[] }) {
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
-      <p className="text-[13px] text-muted-foreground" aria-live="polite">
-        {isFiltered
-          ? `Showing ${shownCount.toLocaleString()} of ${totalCount.toLocaleString()} transactions`
-          : `${totalCount.toLocaleString()} transactions`}
-      </p>
 
       <TransactionList
         groups={filteredGroups}
@@ -596,17 +645,9 @@ function TxDataTable({ txs }: { txs: parser.Transaction[] }) {
 
 export default function Transactions({
   transactions,
-  onRefresh,
 }: {
   transactions: parser.Transaction[];
-  /** Pull-to-refresh action: drains new arrivals and resolves when done. */
-  onRefresh: () => Promise<unknown>;
 }) {
-  // Pull-to-refresh: dragging down from the very top reveals an arrow that
-  // rotates with pull distance; releasing past threshold merges arrivals.
-  const [pull, setPull] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
-  const startY = useRef<number | null>(null);
   // Infinite scroll companion: appears past ~600px, jumps to top.
   const [showTop, setShowTop] = useState(false);
   useEffect(() => {
@@ -615,52 +656,7 @@ export default function Transactions({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
   return (
-    <div
-      className="space-y-6"
-      onTouchStart={(e) => {
-        if (window.scrollY <= 0 && !refreshing) {
-          startY.current = e.touches[0].clientY;
-        }
-      }}
-      onTouchMove={(e) => {
-        if (startY.current === null || refreshing) return;
-        const d = e.touches[0].clientY - startY.current;
-        setPull(d > 0 ? Math.min(d * 0.5, 96) : 0);
-      }}
-      onTouchEnd={() => {
-        startY.current = null;
-        if (pull >= 64 && !refreshing) {
-          setRefreshing(true);
-          const started = Date.now();
-          onRefresh().finally(() => {
-            const wait = Math.max(0, 700 - (Date.now() - started));
-            window.setTimeout(() => {
-              setRefreshing(false);
-              setPull(0);
-            }, wait);
-          });
-        } else {
-          setPull(0);
-        }
-      }}
-    >
-      {(pull > 0 || refreshing) && (
-        <div
-          className="flex items-start justify-center overflow-hidden"
-          style={{ height: refreshing ? 44 : pull }}
-          aria-hidden="true"
-        >
-          {refreshing ? (
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          ) : (
-            <ArrowDown
-              className="size-5 text-muted-foreground transition-transform"
-              style={{ transform: `rotate(${Math.min(pull / 64, 1) * 180}deg)` }}
-            />
-          )}
-        </div>
-      )}
-      <PageHeader title="Transactions" />
+    <div className="space-y-6">
       {transactions.length > 0 ? (
         <TxDataTable txs={transactions} />
       ) : (

@@ -32,6 +32,13 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Battery exemption: lets the app open the system "ignore battery
+         optimizations" dialog for itself so Doze stops delaying the SMS
+         catcher and the payment reminders. The user still decides. Google
+         Play requires this one to be declared and justified in the console
+         as core-function automation (the always-on M-Pesa catcher); without
+         that declaration the request is refused at review, not at runtime. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Accessibility automation is a sensitive permission: no runtime grant
          exists, the user opts in via system Settings (see the in-app
          disclosure). The manifest entry only makes the service offerable. -->

@@ -7,16 +7,17 @@ import { HistorySheet } from "@/components/history-sheet";
 import { SimSwitcher } from "@/components/sim-switcher";
 import { BrandMark } from "@/components/brand-mark";
 import { setPrivacyMode, usePrivacyMode } from "@/lib/privacy-mode";
+import { useDevMode } from "@/hooks/use-konami-code";
 import type * as store from "../../bindings/mpesa-analyzer/internal/store/models";
+import type { SimWallet } from "@/lib/sim-support";
 import type { DataMode } from "@/lib/data-mode";
 
 export interface AppHeaderProps {
 	statements: store.StatementMeta[];
 	mode: DataMode;
 	isAndroid: boolean;
-	smsMetas: store.StatementMeta[];
+	wallets: SimWallet[];
 	smsRecordId: string | null;
-	simNumbers: Record<string, string>;
 	historyOpen: boolean;
 	activeId: string | null;
 	setHistoryOpen: (open: boolean) => void;
@@ -54,9 +55,8 @@ export function AppHeader(props: AppHeaderProps) {
 		statements,
 		mode,
 		isAndroid,
-		smsMetas,
+		wallets,
 		smsRecordId,
-		simNumbers,
 		historyOpen,
 		activeId,
 		setHistoryOpen,
@@ -66,6 +66,7 @@ export function AppHeader(props: AppHeaderProps) {
 		onSwitchSim,
 	} = props;
 	const navigate = useNavigate();
+	const dev = useDevMode();
 
 	return (
 		<header className="sticky top-0 z-40 border-b border-border bg-background">
@@ -75,15 +76,14 @@ export function AppHeader(props: AppHeaderProps) {
 					<SidebarTrigger className="hidden lg:inline-flex" />
 					{/* One brand only: the sidebar owns it from lg up. */}
 					<BrandMark className="size-6 shrink-0 lg:hidden" />
-					<span className="hidden text-lg font-bold tracking-tight text-foreground sm:inline lg:hidden">
+					<span className="text-lg font-bold tracking-tight text-foreground lg:hidden">
 						Tripwire
 					</span>
 				</div>
 
 				<div className="flex min-w-0 items-center gap-1.5">
-					{(statements.length > 0 || smsMetas.length > 0) && (
-						<PrivacyToggle />
-					)}
+					{(statements.length > 0 ||
+						wallets.some((w) => w.meta !== null)) && <PrivacyToggle />}
 					{statements.length > 0 && mode === "statements" && (
 						<HistorySheet
 							statements={statements}
@@ -97,7 +97,7 @@ export function AppHeader(props: AppHeaderProps) {
 					)}
 					{/* SMS mode owns its own import action on the SMS screen.
 					    This icon is the way back to that screen from anywhere. */}
-					{isAndroid && (
+					{isAndroid && dev.unlocked && (
 						<Button
 							size="icon-sm"
 							variant="ghost"
@@ -111,9 +111,8 @@ export function AppHeader(props: AppHeaderProps) {
 					)}
 					{isAndroid && mode === "sms" && (
 						<SimSwitcher
-							sims={smsMetas}
+							wallets={wallets}
 							activeId={smsRecordId}
-							numbers={simNumbers}
 							onSwitch={onSwitchSim}
 						/>
 					)}
