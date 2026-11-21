@@ -23,7 +23,7 @@ fresh install with Tripwire's fictional demo statement. No real data appears.
 ## Installation
 
 [releases page](https://github.com/trononly/Tripwire/releases) as
-`Tripwire-0.15.0.apk` (plus a `Tripwire-0.15.0.aab` Play Store bundle).
+`Tripwire-0.15.1.apk`.
 
 The app checks that releases page for updates: on launch (at most once a
 day) and on demand from **Settings → App updates**. When a newer build
