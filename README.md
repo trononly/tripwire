@@ -7,10 +7,23 @@ and helps you understand where your money goes: cashflow, categories,
 counterparties, the fees Safaricom took, and recurring bills and
 subscriptions.
 
+## Screenshots
+
+Screens from the app in SMS mode, the mode it uses on a phone, taken on a
+fresh install with Tripwire's fictional demo statement. No real data appears.
+
+| Home | Spending by week and category | The ledger |
+| --- | --- | --- |
+| ![Home: balance and In and Out](docs/screenshots/home.png) | ![Weekly money out and the category donut](docs/screenshots/home-scrolled.png) | ![Transactions with search and filters](docs/screenshots/transactions.png) |
+
+| Insights | Pick a month | Pay menu |
+| --- | --- | --- |
+| ![Insights: the month's finding](docs/screenshots/insights.png) | ![The month picker sheet](docs/screenshots/insights-month.png) | ![Pay: four destinations](docs/screenshots/pay-menu.png) |
+
 ## Installation
 
 [releases page](https://github.com/trononly/Tripwire/releases) as
-`Tripwire-1.2.3.apk` (plus a `Tripwire-1.2.3.aab` Play Store bundle).
+`Tripwire-0.15.0.apk` (plus a `Tripwire-0.15.0.aab` Play Store bundle).
 
 The app checks that releases page for updates: on launch (at most once a
 day) and on demand from **Settings → App updates**. When a newer build
